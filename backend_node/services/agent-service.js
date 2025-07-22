@@ -88,7 +88,6 @@ class AgentService {
       - /styles/globals.css → global styles using Tailwind
       - /tailwind.config.js → Tailwind configuration
       - /postcss.config.js → PostCSS configuration
-      - /package.json → all dependencies listed (Next.js, React, TailwindCSS)
 
       🧩 Logic Requirements:
       - index.js should include state for managing todos (add/delete/toggle)
@@ -166,7 +165,6 @@ class AgentService {
           "/styles/globals.css",
           "/tailwind.config.js",
           "/postcss.config.js",
-          "/package.json",
         ];
 
         const missingFiles = requiredFiles.filter(

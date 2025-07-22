@@ -8,6 +8,7 @@ const axios = require("axios"); // Make sure axios is installed
 const executeShellCommand = require("./shell-command-executor");
 const { commandFixerAgent } = require("./utils/commandFixerAgent");
 const generateRouter = require("./routes/generate");
+const generateV2Router = require("./routes/generate-v2");
 const prdRouter = require("./routes/prd");
 const projectControlRouter = require("./routes/project-control");
 const compilationCheckRouter = require("./routes/compilation-check");
@@ -47,6 +48,7 @@ const io = new Server(server, {
 
 // Include routers
 app.use(generateRouter);
+app.use("/api", generateV2Router);
 app.use(prdRouter);
 app.use(projectControlRouter);
 app.use(compilationCheckRouter);

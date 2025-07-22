@@ -89,6 +89,18 @@ Generate ONLY the code for the files specified in this task.
 - IMPORTANT: The 'use client' directive must be the FIRST line of the file, before any imports
 - IMPORTANT: Custom hooks files should have 'use client' directive if they use React hooks
 - IMPORTANT: Components with interactive elements (buttons, forms, inputs) need 'use client' directive
+- EXPORT/IMPORT PATTERNS: Use consistent module patterns:
+  * React Components: ALWAYS use "export default function ComponentName()" or "export default ComponentName" (for arrow functions)
+  * Custom Hooks: ALWAYS use "export function useHookName()" or "export const useHookName = ()"
+  * Context: ALWAYS use "export const ContextName = createContext()" 
+  * Types/Interfaces: ALWAYS use "export interface" or "export type"
+  * Utils/Helpers: ALWAYS use "export function functionName()" or "export const functionName = ()"
+  * NEVER mix default and named exports in the same file
+  * NEVER use "export { ComponentName }" at the bottom of files
+- IMPORT PATTERNS: Match imports to export patterns:
+  * Default exports: "import ComponentName from './ComponentName'"
+  * Named exports: "import { functionName } from './utils'"
+  * NEVER use "import { default as ComponentName }" pattern
 - EXCLUDE: Do NOT generate service workers, PWA configs, or offline support code
 - EXCLUDE: Do NOT generate separate accessibility feature files (include basic accessibility inline with semantic HTML and ARIA attributes)
 - ANIMATIONS: Use ONLY CSS animations or Tailwind CSS animation classes (e.g., transition-all, animate-pulse, hover:scale-105)

@@ -25,8 +25,50 @@ class TailwindVersionDetector {
         }
       }
       
-      // Always generate v3 PostCSS config for stability (CommonJS format)
-      const postcssConfig = `/** @type {import('postcss-load-config').Config} */
+      // Check package.json to determine Tailwind version
+      let tailwindVersion = 3;
+      try {
+        const packageJsonPath = path.join(projectPath, 'package.json');
+        const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
+        
+        // Check actual installed version in node_modules if available
+        try {
+          const tailwindPackagePath = path.join(projectPath, 'node_modules', 'tailwindcss', 'package.json');
+          const tailwindPackage = JSON.parse(await fs.readFile(tailwindPackagePath, 'utf-8'));
+          const installedVersion = tailwindPackage.version;
+          tailwindVersion = parseInt(installedVersion.split('.')[0]);
+          
+          if (socket) {
+            socket.emit('output', `  ℹ Detected Tailwind CSS v${installedVersion}\n`);
+          }
+        } catch (e) {
+          // If can't read from node_modules, check package.json dependency
+          const tailwindDep = packageJson.dependencies?.tailwindcss || packageJson.devDependencies?.tailwindcss;
+          if (tailwindDep) {
+            const versionMatch = tailwindDep.match(/(\d+)\./);
+            if (versionMatch) {
+              tailwindVersion = parseInt(versionMatch[1]);
+            }
+          }
+        }
+      } catch (e) {
+        // Default to v3 if can't determine
+      }
+      
+      // Generate appropriate PostCSS config based on Tailwind version
+      let postcssConfig;
+      if (tailwindVersion >= 4) {
+        // Tailwind v4 requires @tailwindcss/postcss
+        postcssConfig = `/** @type {import('postcss-load-config').Config} */
+module.exports = {
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+};
+`;
+      } else {
+        // Tailwind v3 and below use the old format
+        postcssConfig = `/** @type {import('postcss-load-config').Config} */
 module.exports = {
   plugins: {
     tailwindcss: {},
@@ -34,20 +76,28 @@ module.exports = {
   },
 };
 `;
+      }
       
       // Write the config
       const configPath = path.join(projectPath, 'postcss.config.js');
       await fs.writeFile(configPath, postcssConfig, 'utf-8');
       
       if (socket) {
-        socket.emit('output', `  ✓ Created PostCSS config for Tailwind v3\n`);
+        socket.emit('output', `  ✓ Created PostCSS config for Tailwind v${tailwindVersion}\n`);
       }
       
-      // Only require standard packages
-      return {
-        version: 'v3',
-        requiredPackages: ['autoprefixer']
-      };
+      // Return appropriate packages based on version
+      if (tailwindVersion >= 4) {
+        return {
+          version: `v${tailwindVersion}`,
+          requiredPackages: ['@tailwindcss/postcss']
+        };
+      } else {
+        return {
+          version: `v${tailwindVersion}`,
+          requiredPackages: ['autoprefixer']
+        };
+      }
       
     } catch (err) {
       console.error('Error creating PostCSS config:', err);

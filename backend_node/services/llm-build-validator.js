@@ -266,13 +266,28 @@ Instructions:
 4. Ensure all syntax errors are fixed
 5. Ensure all type errors are resolved
 6. Follow the project's coding patterns
-${hasUseClientError ? "7. IMPORTANT: Add 'use client' directive at the top of any file that uses React hooks (useState, useEffect, etc.) or browser-only features" : ""}
+7. CRITICAL: ALWAYS preserve existing 'use client' directives at the top of files - NEVER remove them
+8. IMPORTANT: Add 'use client' directive at the top of any file that uses React hooks (useState, useEffect, etc.), event handlers (onClick, onChange), or browser-only features
+
+EXPORT/IMPORT PATTERNS - You MUST follow these rules:
+- React Components: ALWAYS use "export default function ComponentName()" or "export default ComponentName"
+- Custom Hooks: ALWAYS use "export function useHookName()" or "export const useHookName = ()"
+- Context: ALWAYS use "export const ContextName = createContext()" 
+- Types/Interfaces: ALWAYS use "export interface" or "export type"
+- Utils/Helpers: ALWAYS use "export function functionName()" or "export const functionName = ()"
+- NEVER mix default and named exports in the same file
+- NEVER use "export { ComponentName }" at the bottom of files
+- Match imports to export patterns:
+  * Default exports: "import ComponentName from './ComponentName'"
+  * Named exports: "import { functionName } from './utils'"
+  * NEVER use "import { default as ComponentName }" pattern
 
 COMMON ISSUES TO CHECK:
-- PostCSS configuration: Should use { plugins: { tailwindcss: {}, autoprefixer: {} } }
-- Missing dependencies: Check if autoprefixer is needed
+- PostCSS configuration: For Tailwind v4+ use { plugins: { '@tailwindcss/postcss': {} } }, for v3 use { plugins: { tailwindcss: {}, autoprefixer: {} } }
+- Missing dependencies: Check if autoprefixer or @tailwindcss/postcss is needed
 - Tailwind CSS errors: Ensure @tailwind directives are in globals.css
 - CSS module conflicts: Check for proper Tailwind setup
+- Import/Export mismatches: Ensure imports match the export style (default vs named)
 
 Return ONLY a valid JSON object with this structure:
 {
