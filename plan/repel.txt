@@ -1,0 +1,89 @@
+[ FILE: nocode_ai_app_steps.txt ]
+
+Objective:
+Build a no-code AI app that takes user prompt and:
+- Generates full-stack code (MERN, Angular, etc.)
+- Organizes code into files/folders
+- Runs it with dependencies
+- Provides live preview
+- Shows code with copy-to-clipboard button
+
+STEP 1: Prompt Input from User
+
+User types:
+Build a todo app using MERN stack with dark mode and CRUD features.
+
+STEP 2: Parse Prompt and Detect Stack
+
+If prompt includes:
+- "mern" → set stack = "mern"
+- "angular" → set stack = "angular"
+- "vue" → set stack = "vue"
+- "django" → set stack = "django"
+Etc...
+
+STEP 3: Create LLM Prompt
+
+Based on stack, format LLM input like this:
+
+You are an expert full-stack code generator.
+
+Generate a fully working MERN stack todo app.
+Output multiple files like this:
+
+--- FILE: backend/server.js ---
+[code here]
+
+--- FILE: backend/routes/todo.js ---
+[code here]
+
+--- FILE: frontend/src/App.js ---
+[code here]
+
+Include all dependencies and scripts.
+
+STEP 4: Parse LLM Response and Create Files
+
+In backend (FastAPI or Node):
+
+- Split by --- FILE: <filename> ---
+- Create folders and write each file to correct path
+
+STEP 5: Install Dependencies
+
+Use npm install or pip install based on stack:
+
+cd frontend && npm install
+cd backend && npm install
+
+STEP 6: Start Preview
+
+Use subprocess or child_process to run servers:
+
+cd frontend && npm start     → port 3000
+cd backend && npm run dev    → port 4000
+
+Return these ports to frontend for iframe preview.
+
+STEP 7: Frontend Displays Preview
+
+In React frontend:
+
+<iframe src="http://localhost:3000" />
+
+STEP 8: Show Code with Copy Button
+
+For each file:
+
+<CodeBlock filename="App.js" content={fileContent} />
+
+Inside CodeBlock:
+
+<button onClick={() => navigator.clipboard.writeText(content)}>
+  Copy
+</button>
+
+END
+
+prompt to pass :
+“Generate backend and frontend based on this spec. Start with MERN stack. Use FastAPI backend.”

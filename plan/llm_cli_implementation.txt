@@ -1,0 +1,65 @@
+//
+1. PRD Approval ke baad create-next-app chalana
+Jab PRD approve ho jaye, tab hum runCommand function ka use karenge jo terminal ke andar command execute karega.
+Command kuch aise hogi:
+
+npx create-next-app@latest my-next-app --no-ts --use-npm --eslint --src-dir=false --app --tailwind
+
+
+Yaha my-next-app ka naam unique identifier hoga jo user ke requirement ke basis pe generate hoga. Isko hum backend me generate karenge.
+Implementation Steps:
+
+handlePRDApproval function me, jab PRD approve ho jaye, tab ek runCommand call karenge jo create-next-app execute kare.
+Command ke execution ke baad, hum check karenge ki project successfully create hua ya nahi.
+2. LLM se Generated Files Mangwana
+Jab create-next-app ka kaam ho jaye, tab hum LLM ko call karenge jo Next.js ke liye required files generate karega.
+Ye files already tera AgentService aur LLMService handle kar raha hai. Bas hume ek naya endpoint ya function banana hoga jo ye kaam kare.
+Implementation Steps:
+
+handlePRDApproval ke andar, jab create-next-app complete ho jaye, tab AgentService ka processRequirement function call karenge jo LLM se files generate karega.
+Ye files JSON format me aayengi, jaise:
+
+{
+  "/pages/index.js": "import React from 'react'; ...",
+  "/components/TodoList.js": "export default function TodoList() { ... }",
+  ...
+}
+
+
+3. Generated Files ko Next.js Project me Inject Karna
+Jo files LLM se aayengi, unko hum my-next-app folder ke andar inject karenge.
+Iske liye hum Node.js ka fs module use karenge jo files ko write karega.
+Implementation Steps:
+
+Backend me ek function banayenge jo:
+my-next-app folder ke andar jaake files ko write kare.
+Har file ke liye path check kare aur overwrite kare.
+Example:
+
+const fs = require('fs');
+const path = require('path');
+
+function injectFiles(projectPath, files) {
+  Object.entries(files).forEach(([filePath, content]) => {
+    const fullPath = path.join(projectPath, filePath);
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    fs.writeFileSync(fullPath, content, 'utf8');
+  });
+}
+
+4. Flow ko Integrate Karna
+PRD approval ke baad flow kuch aise chalega:
+runCommand se create-next-app execute hoga.
+Jab create-next-app complete ho jaye, tab LLM ko call karke files generate karenge.
+Generated files ko injectFiles function ke through Next.js project me daalenge.
+User ko success message dikhayenge.
+5. Error Handling aur Status Updates
+Har step ke liye proper error handling aur status updates dene honge.
+Example:
+Agar create-next-app fail ho jaye, to user ko error message dikhana.
+Agar LLM se files na aaye, to fallback message dikhana.
+Code Changes ka Overview:
+handlePRDApproval me runCommand aur LLM integration add karna.
+Backend me injectFiles function banana jo files ko Next.js project me write kare.
+Terminal output aur errors ko handle karna.
+Agar tu chahe to main iske liye code snippets bhi likh deta hoon. Tu bas bata de

@@ -1,0 +1,168 @@
+
+# 🧠 Roadmap: Building a Complete AI-Powered TODO Assistant Agent (LLM-based)
+
+This document outlines the **step-by-step features and capabilities** you can build into your AI-powered TODO Assistant Agent.  
+Perfect for learning and applying **prompt engineering**, **LLM integration**, and **agent-style thinking**.
+
+---
+
+## 🎯 Goal
+
+Create an intelligent TODO assistant that doesn't just manage tasks, but **thinks**, **reasons**, and **advises** the user — like a human productivity coach.
+
+---
+
+## 📚 Learning Plan (Feature by Feature)
+
+### ✅ 1. **Basic Prompt Caller**
+- Send tasks to LLM with a simple prompt.
+- Get back a priority list as plain text.
+- Use `fetch` and local LLM (Ollama or OpenAI).
+
+> 🔁 You’ve already done this!
+
+---
+
+### 🧱 2. **Modular Prompt Builder**
+- Move your prompt into a separate `promptBuilder.js`.
+- Dynamically build it based on task properties (deadline, priority).
+- Makes future logic expansion easy.
+
+---
+
+### 🧠 3. **Task Analyzer Agent**
+- Add logic that categorizes tasks:
+  - Urgent
+  - Low-priority
+  - Blocked
+- Pass categories into the prompt.
+
+---
+
+### 🧠 4. **Context Memory (Short-Term)**
+- Save LLM outputs to a file or DB.
+- On next request, include “last 3 suggestions” as prompt input.
+- Simulates agent memory.
+
+---
+
+### 🧠 5. **Structured JSON Output**
+- Ask LLM to respond only in:
+```json
+{
+  "prioritizedTasks": [],
+  "skippedTasks": []
+}
+```
+- Parse response using `JSON.parse()` safely.
+
+---
+
+### 🛠️ 6. **Tool Suggestion / Action Planner**
+- Instruct the LLM: if a task is urgent → suggest “send reminder”.
+- You can mock or actually connect this to an API.
+- Example output:
+```json
+{
+  "actions": [
+    { "type": "reminder", "task": "Submit taxes" }
+  ]
+}
+```
+
+---
+
+### 🧠 7. **Subtask Generator**
+- Agent reads big tasks like “Plan vacation” and breaks them into subtasks.
+- Output:
+```json
+{
+  "task": "Plan vacation",
+  "subtasks": ["Book flight", "Find hotel", "Make itinerary"]
+}
+```
+
+---
+
+### 🔀 8. **Multi-Agent Simulation**
+- Add different agents:
+  - `PlannerAgent`: breaks tasks
+  - `PrioritizerAgent`: ranks tasks
+  - `ReminderAgent`: identifies urgent items
+- Each one has its own role + LLM prompt.
+
+---
+
+### 🧠 9. **LLM Reasoning Feedback**
+- Show “why” a task was prioritized.
+- Add “reason” in output:
+```json
+{
+  "task": "Finish report",
+  "reason": "Due tomorrow and high impact"
+}
+```
+
+---
+
+### 🌐 10. **Natural Language Task Entry**
+- Accept input like: “Remind me to call mom before 6pm”
+- Let LLM convert to structured task JSON:
+```json
+{
+  "title": "Call mom",
+  "deadline": "Today 6 PM"
+}
+```
+
+---
+
+### 🧠 11. **Few-shot Examples**
+- Add example input/output in prompt to make LLM smarter.
+- Improves stability + formatting of LLM output.
+
+---
+
+### 🚀 12. **Agent Autonomy Simulation**
+- Add loop: let agent ask “Should I continue?” or “Do you want to reschedule?”
+- Makes it behave like a real assistant, not just a calculator.
+
+---
+
+## 📌 Final Outcome
+
+Your TODO AI agent will be able to:
+- Understand context
+- Prioritize like a productivity expert
+- Handle natural language
+- Suggest actions
+- Evolve with experience
+
+---
+
+## 🔁 Recommended Build Order
+
+1. ✅ Basic Prompt Caller  
+2. ✅ Modular Prompt Builder  
+3. ✅ JSON Output Parsing  
+4. ✅ Task Analyzer Logic  
+5. ✅ Short-term Memory  
+6. ✅ Subtask Generation  
+7. ✅ Action Planner / Tool Triggering  
+8. ✅ Multi-Agent Setup  
+9. ✅ Reason-based Prioritization  
+10. ✅ Natural Language Conversion  
+11. ✅ Few-shot Examples  
+12. ✅ Autonomy & Conversation  
+
+---
+
+Work through this list one-by-one and you'll learn:
+- Prompt Engineering
+- AI Thinking
+- Modular AI Design
+- Agent Architecture
+
+---
+
+# 🧠 Happy Hacking, Bur-Chatta!

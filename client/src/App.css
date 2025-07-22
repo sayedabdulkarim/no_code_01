@@ -1,0 +1,455 @@
+body {
+  margin: 0;
+  background-color: #1e1e1e;
+  padding: 0;
+  color: #cccccc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.App {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  background-color: #f5f5f5;
+  height: 100vh;
+  font-family: Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0 auto;
+  padding: 20px;
+  max-width: 1200px;
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  margin-bottom: 2rem;
+  background-color: #282c34;
+  padding: 20px;
+  color: white;
+  font-weight: bold;
+  font-size: 1.5rem;
+  text-align: center;
+}
+
+.App-header h1 {
+  margin: 0;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-size: 2rem;
+}
+
+.App-header p {
+  opacity: 0.8;
+  margin: 10px 0 0;
+  font-size: 1rem;
+}
+
+.App-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2rem;
+  overflow: hidden;
+}
+
+.requirement-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 30px;
+  margin: 0 auto;
+  border: 1px solid #404040;
+  background-color: #252526;
+  width: 100%;
+  max-width: 800px;
+}
+
+.requirement-input {
+  margin-bottom: 15px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  padding: 12px;
+  width: 100%;
+  max-width: 800px;
+  resize: vertical;
+  font-size: 16px;
+  font-family: inherit;
+}
+
+.submit-button {
+  transition: background-color 0.2s;
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  background-color: #0066cc;
+  padding: 12px 24px;
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.submit-button:hover {
+  background-color: #0052a3;
+}
+
+.submit-button:disabled {
+  cursor: not-allowed;
+  background-color: #cccccc;
+}
+
+.error-message {
+  margin: 1rem 0;
+  color: #dc3545;
+  font-weight: bold;
+}
+
+.results-container {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  margin-top: 30px;
+}
+
+.code-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.code-section {
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  background-color: white;
+  overflow: hidden;
+}
+
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #282c34;
+  padding: 10px 15px;
+  color: white;
+}
+
+.code-header h3 {
+  margin: 0;
+}
+
+.copy-button {
+  align-self: flex-start;
+  transition: background-color 0.2s;
+  cursor: pointer;
+  margin-top: 1rem;
+  border: none;
+  border-radius: 6px;
+  background-color: #28a745;
+  padding: 12px 24px;
+  color: white;
+  font-size: 16px;
+}
+
+.copy-button:hover {
+  background-color: #218838;
+}
+
+.code-display {
+  margin: 10px 0;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background-color: #f8f9fa;
+  padding: 20px;
+  overflow: auto;
+  font-size: 14px;
+  font-family: "Courier New", Courier, monospace;
+  white-space: pre;
+}
+
+.preview-container {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin: 20px 0;
+  background-color: white;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.preview-container h3 {
+  margin: 0;
+  background-color: #282c34;
+  padding: 10px 15px;
+  color: white;
+}
+
+.preview-frame {
+  flex: 1;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+  width: 100%;
+  height: 500px;
+}
+
+.chat-container {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  border-right: 1px solid #ddd;
+  background-color: white;
+  padding: 20px;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.chat-header {
+  margin-bottom: 10px;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.chat-box {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.chat-message {
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background-color: #f0f0f0;
+  padding: 15px;
+  max-width: 80%;
+}
+
+.chat-message.user {
+  align-self: flex-end;
+  background-color: #e0f7fa;
+}
+
+.chat-message.agent {
+  align-self: flex-start;
+  background-color: #f0f7ff;
+}
+
+.chat-input-container {
+  display: flex;
+  margin-top: 10px;
+}
+
+.chat-input {
+  flex: 1;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 10px;
+  font-size: 1rem;
+}
+
+.tabs-container {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin: 20px 0;
+  border-right: 1px solid #ddd;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: white;
+  overflow: hidden;
+}
+
+.tabs-header {
+  display: flex;
+  border-bottom: 1px solid #ddd;
+  background-color: #f8f9fa;
+}
+
+.tabs-header button {
+  flex: 1;
+  transition: background-color 0.2s;
+  cursor: pointer;
+  border: none;
+  border-right: 1px solid #ddd;
+  background-color: transparent;
+  padding: 12px 24px;
+  font-size: 1rem;
+}
+
+.tabs-header button:last-child {
+  border-right: none;
+}
+
+.tabs-header button:hover {
+  background-color: #e9ecef;
+}
+
+.active-tab {
+  border-bottom: 3px solid #0066cc;
+  background-color: white;
+  font-weight: bold;
+}
+
+.tabs-content {
+  flex: 1;
+  background-color: white;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 768px) {
+  .App-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .code-container {
+    grid-template-columns: 1fr;
+  }
+
+  .App {
+    padding: 10px;
+  }
+
+  .tabs-header button {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+
+  .code-display {
+    font-size: 14px;
+  }
+}
+
+.prd-container {
+  margin: 20px auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  background-color: #f8f9fa;
+  padding: 20px;
+  max-width: 800px;
+}
+
+.prd-container h3 {
+  margin-top: 0;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+  color: #333;
+}
+
+.prd-content {
+  margin: 15px 0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  border-radius: 6px;
+  background-color: white;
+  padding: 20px;
+  max-height: 400px;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.prd-content pre {
+  margin: 0;
+  line-height: 1.5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.prd-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.approve-button {
+  transition: background-color 0.2s;
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  background-color: #0066cc;
+  padding: 12px 24px;
+  color: white;
+  font-weight: 500;
+}
+
+.approve-button:hover {
+  background-color: #0052a3;
+}
+
+.approve-button:disabled {
+  cursor: not-allowed;
+  background-color: #6c757d;
+}
+
+.reject-button {
+  transition: background-color 0.2s;
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  background-color: #dc3545;
+  padding: 12px 24px;
+  color: white;
+  font-weight: 500;
+}
+
+.reject-button:hover {
+  background-color: #bd2130;
+}
+
+.terminal-container {
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  background-color: #1e1e1e;
+  padding: 5px;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Override xterm cursor to make it more visible */
+.xterm-cursor {
+  border-color: #fff !important;
+  background-color: #fff !important;
+}
+
+/* Custom scrollbar for the terminal */
+.xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+
+.xterm-viewport::-webkit-scrollbar-track {
+  background: #333;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: #666;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: #888;
+}
