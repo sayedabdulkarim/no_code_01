@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const { findAvailablePort } = require('../utils/port-finder');
 const path = require('path');
+const fs = require('fs').promises;
 
 class ProjectManager {
   constructor() {
@@ -24,6 +25,18 @@ class ProjectManager {
     }
 
     try {
+      // Clean up .next directory to prevent build artifact conflicts
+      const nextDir = path.join(projectPath, '.next');
+      try {
+        await fs.rm(nextDir, { recursive: true, force: true });
+        if (socket) {
+          socket.emit('output', `\n\x1b[36m> Cleaned build artifacts\x1b[0m\n`);
+        }
+      } catch (cleanupError) {
+        // Directory might not exist, that's ok
+        console.log('No .next directory to clean');
+      }
+
       // Find an available port starting from 3002 (to avoid conflicts with main app)
       const port = await findAvailablePort(3002);
       

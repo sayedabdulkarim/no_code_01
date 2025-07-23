@@ -269,6 +269,25 @@ Instructions:
 7. CRITICAL: ALWAYS preserve existing 'use client' directives at the top of files - NEVER remove them
 8. IMPORTANT: Add 'use client' directive at the top of any file that uses React hooks (useState, useEffect, etc.), event handlers (onClick, onChange), or browser-only features
 
+STRICT CONSTRAINTS WHEN FIXING:
+- If error is about missing dependency (like zustand), REMOVE the import and rewrite using React useState/useContext
+- DO NOT add new dependencies to package.json
+- DO NOT import external libraries
+- DO NOT use CSS-in-JS or styled-components
+- ONLY use these allowed packages: next, react, react-dom, typescript, tailwindcss
+- For state management: Use ONLY React useState and Context API
+- For HTTP requests: Use ONLY native fetch()
+- For styling: Use ONLY Tailwind classes
+- For forms: Use ONLY controlled components with useState
+- Maximum component size: 150 lines
+
+TAILWIND-SPECIFIC FIXES:
+- If error: "Can't resolve 'tailwindcss'" - REMOVE any import/require of tailwindcss
+- NEVER add: import 'tailwindcss' or require('tailwindcss') 
+- Tailwind works through PostCSS, not direct imports
+- If a file has @tailwind directives in the wrong place, move them to globals.css
+- The ONLY valid location for @tailwind is in src/app/globals.css
+
 EXPORT/IMPORT PATTERNS - You MUST follow these rules:
 - React Components: ALWAYS use "export default function ComponentName()" or "export default ComponentName"
 - Custom Hooks: ALWAYS use "export function useHookName()" or "export const useHookName = ()"

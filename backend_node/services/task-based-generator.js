@@ -79,35 +79,151 @@ EXISTING FILES IN PROJECT:
 ${existingFilesList || "None yet"}
 
 Generate ONLY the code for the files specified in this task.
-- Use Next.js 14 with App Router
-- Use TypeScript
-- Use Tailwind CSS for styling (use standard utility classes)
-- Follow best practices
-- DO NOT modify postcss.config.mjs or package.json
-- Make the code production-ready
-- IMPORTANT: ALWAYS add 'use client' directive at the very top of any file that uses React hooks (useState, useEffect, etc.), event handlers (onClick, onChange), or browser APIs
-- IMPORTANT: The 'use client' directive must be the FIRST line of the file, before any imports
-- IMPORTANT: Custom hooks files should have 'use client' directive if they use React hooks
-- IMPORTANT: Components with interactive elements (buttons, forms, inputs) need 'use client' directive
-- EXPORT/IMPORT PATTERNS: Use consistent module patterns:
-  * React Components: ALWAYS use "export default function ComponentName()" or "export default ComponentName" (for arrow functions)
-  * Custom Hooks: ALWAYS use "export function useHookName()" or "export const useHookName = ()"
-  * Context: ALWAYS use "export const ContextName = createContext()" 
-  * Types/Interfaces: ALWAYS use "export interface" or "export type"
-  * Utils/Helpers: ALWAYS use "export function functionName()" or "export const functionName = ()"
-  * NEVER mix default and named exports in the same file
-  * NEVER use "export { ComponentName }" at the bottom of files
-- IMPORT PATTERNS: Match imports to export patterns:
-  * Default exports: "import ComponentName from './ComponentName'"
-  * Named exports: "import { functionName } from './utils'"
-  * NEVER use "import { default as ComponentName }" pattern
-- EXCLUDE: Do NOT generate service workers, PWA configs, or offline support code
-- EXCLUDE: Do NOT generate separate accessibility feature files (include basic accessibility inline with semantic HTML and ARIA attributes)
-- ANIMATIONS: Use ONLY CSS animations or Tailwind CSS animation classes (e.g., transition-all, animate-pulse, hover:scale-105)
-- ANIMATIONS: Do NOT use external animation libraries like framer-motion, react-spring, or similar
-- ANIMATIONS: Prefer CSS @keyframes for complex animations, defined in the same file or a separate CSS file
-- FONTS: Do NOT import or use custom fonts from next/font/google (like Geist, Inter, etc.)
-- FONTS: Keep layout.tsx simple without font imports to avoid build issues
+
+STRICT CONSTRAINTS - YOU MUST FOLLOW THESE RULES:
+
+1. TECHNOLOGY STACK (ONLY use these):
+   - Next.js 14 with App Router
+   - TypeScript
+   - React built-in hooks ONLY (useState, useEffect, useCallback, useMemo, useRef, useContext)
+   - Tailwind CSS for styling (standard utility classes only)
+   
+2. FORBIDDEN - DO NOT USE:
+   - External state management (NO zustand, redux, mobx, jotai, valtio)
+   - External HTTP libraries (NO axios, fetch wrappers - use native fetch)
+   - Animation libraries (NO framer-motion, react-spring, lottie)
+   - CSS-in-JS libraries (NO styled-components, emotion)
+   - Form libraries (NO react-hook-form, formik)
+   - Utility libraries (NO lodash, ramda, date-fns)
+   - Custom fonts from next/font
+   - Any package not explicitly allowed
+
+3. ALLOWED PACKAGES (package.json dependencies):
+   - next (^14.0.0)
+   - react (^18.0.0)
+   - react-dom (^18.0.0)
+   - typescript (^5.0.0)
+   - @types/react (^18.0.0)
+   - @types/react-dom (^18.0.0)
+   - @types/node (^20.0.0)
+   - tailwindcss (^3.0.0)
+   - autoprefixer (^10.0.0)
+   - postcss (^8.0.0)
+   - eslint (^8.0.0)
+   - eslint-config-next (^14.0.0)
+
+4. STATE MANAGEMENT RULES:
+   - Use ONLY React useState for component state
+   - Use ONLY React Context API for shared state
+   - NO external state libraries
+   - Keep state simple and local when possible
+
+5. FILE STRUCTURE REQUIREMENTS:
+   - ALWAYS include 'use client' directive for client components
+   - The 'use client' directive must be the FIRST line (before imports)
+   - Every component file needs 'use client' if it has ANY interactivity
+   
+   CRITICAL 'use client' RULES:
+   - ALL files in /src/components/ MUST start with 'use client'
+   - ALL files in /src/app/ that have interactivity MUST start with 'use client'
+   - Files that MUST have 'use client':
+     * Any file using useState, useEffect, useCallback, useMemo, useRef
+     * Any file with onClick, onChange, onSubmit handlers
+     * Any file using browser APIs (window, document, localStorage)
+     * Any file importing other client components
+   - Files that should NOT have 'use client':
+     * /src/app/layout.tsx (unless it has interactivity)
+     * Pure type definition files (.d.ts, types.ts)
+     * Utility files with pure functions
+     * Config files
+   
+   The 'use client' directive format MUST be exactly:
+   'use client';
+   
+   (with semicolon, single quotes, on its own line, before ANY other code)
+
+6. REQUIRED FILES (every project MUST have these):
+   - /src/app/layout.tsx - Root layout with metadata
+   - /src/app/page.tsx - Home page
+   - /src/app/globals.css - Tailwind directives only
+   - /package.json - ONLY allowed dependencies
+   - /tailwind.config.js - Standard config
+   - /postcss.config.js - Standard config
+   - /next.config.js - Minimal config
+
+7. EXPORT/IMPORT PATTERNS:
+   - React Components: "export default function ComponentName()"
+   - Custom Hooks: "export function useHookName()"
+   - Context: "export const ContextName = createContext()"
+   - Types: "export interface" or "export type"
+   - NO mixed exports in same file
+
+8. COMPONENT RULES:
+   - Maximum 150 lines per component
+   - Use semantic HTML
+   - Include basic ARIA attributes
+   - NO complex patterns (HOCs, render props)
+   - NO dynamic imports
+
+9. STYLING RULES:
+   - Use ONLY Tailwind utility classes
+   - NO inline styles unless absolutely necessary
+   - NO CSS modules
+   - NO CSS-in-JS
+   - Animations: ONLY Tailwind animation classes or CSS keyframes
+   
+   CRITICAL TAILWIND RULES:
+   - NEVER import tailwindcss directly: NO import 'tailwindcss' statements
+   - NEVER require tailwindcss in component files
+   - Tailwind is configured via postcss.config.js ONLY
+   - Use Tailwind ONLY through className attributes
+   - The ONLY place for Tailwind directives is globals.css with these three lines:
+     @tailwind base;
+     @tailwind components;
+     @tailwind utilities;
+   - NEVER add these directives to component files
+
+10. DO NOT:
+    - Generate service workers or PWA features
+    - Create complex build configurations
+    - Modify postcss.config.js or next.config.js
+    - Import CSS files directly in components
+    - Use experimental Next.js features
+
+11. COMPONENT TEMPLATES - Use these exact patterns:
+
+For interactive components (with state/handlers):
+\`\`\`typescript
+'use client';
+
+import { useState } from 'react';
+
+export default function ComponentName() {
+  // component logic here
+}
+\`\`\`
+
+For simple display components:
+\`\`\`typescript
+'use client';
+
+export default function ComponentName({ prop1, prop2 }: Props) {
+  return (
+    // JSX here
+  );
+}
+\`\`\`
+
+For app pages with interactivity:
+\`\`\`typescript
+'use client';
+
+import ComponentName from '@/components/ComponentName';
+
+export default function PageName() {
+  // page logic
+}
+\`\`\`
 
 Return ONLY a valid JSON object with this structure:
 {

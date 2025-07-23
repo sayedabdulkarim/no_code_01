@@ -1,20 +1,9 @@
-// Agent Service for UI generation - Now using task-based generator internally
+// Agent Service for UI generation
 const { LLMService, LLMServiceError } = require("./llm-service");
-const TaskBasedGenerator = require('./task-based-generator');
-const ImportExportValidator = require('./import-export-validator');
-const { PRDService } = require('./prd-service');
-const { ensureBoilerplateFiles } = require('./boilerplate-templates');
-const path = require('path');
-const fs = require('fs').promises;
-require('dotenv').config();
 
 class AgentService {
   constructor() {
     this.llmService = new LLMService();
-    // Add task-based generator for improved code generation
-    this.taskGenerator = new TaskBasedGenerator(process.env.OPENROUTER_API_KEY);
-    // Add PRD service for requirement processing
-    this.prdService = new PRDService();
   }
 
   // Check if the requirement is requesting a modification to an existing UI
@@ -232,165 +221,36 @@ class AgentService {
     return await this.llmService.generateText(prompt);
   }
 
-  // Process the requirement - Now using task-based generator
+  // Process the requirement
   async processRequirement(requirement) {
     try {
-      console.log('AgentService: Using task-based generator for improved code generation');
-      
-      // Step 1: Generate PRD using PRD service
-      const prd = await this.prdService.generatePRD(requirement);
-      
-      // Step 2: Create analysis for compatibility
-      const analysis = {
-        type: this._determineProjectType(requirement),
-        complexity: 'medium',
-        requirements: requirement,
-        framework: 'Next.js',
-        styling: 'Tailwind CSS'
+      const isModification = this._isModificationRequest(requirement);
+
+      const analysis = await this._analyzeRequirement(
+        requirement,
+        isModification
+      );
+      const plan = await this._planImplementation(
+        requirement,
+        analysis,
+        isModification
+      );
+
+      // Generate Next.js project files instead of basic UI code
+      const generatedFiles = await this._generateNextJsProjectFiles(
+        requirement,
+        analysis,
+        plan
+      );
+
+      return {
+        files: generatedFiles,
+        analysis: analysis,
+        plan: plan,
+        feedback: null,
       };
-      
-      // Step 3: Generate project files using task-based approach
-      const tempPath = path.join(__dirname, '../../temp', `temp-${Date.now()}`);
-      await fs.mkdir(tempPath, { recursive: true });
-      
-      try {
-        // Generate the project files using task-based approach
-        // Step 1: Create tasks from PRD
-        const taskListResponse = await this.taskGenerator.createTaskList(prd);
-        const tasks = taskListResponse.tasks || taskListResponse; // Handle both formats
-        
-        // Ensure tasks is an array
-        const taskArray = Array.isArray(tasks) ? tasks : [];
-        
-        // Step 2: Execute tasks to generate files
-        const executedTasks = await this.taskGenerator.executeTasks(taskArray, prd, tempPath, (progress) => {
-          console.log(`Progress: ${progress.taskName} - ${progress.status}`);
-        });
-        
-        const result = {
-          tasks: executedTasks,
-          summary: 'Project generated successfully',
-          generatedFiles: [] // Will be collected from file system
-        };
-        
-        // Collect generated files in the expected format
-        const generatedFiles = await this._collectGeneratedFiles(tempPath, result.generatedFiles || []);
-        
-        // Ensure all boilerplate files exist
-        const filesWithBoilerplate = ensureBoilerplateFiles(generatedFiles);
-        
-        // Validate imports and exports
-        const validator = new ImportExportValidator();
-        const validation = validator.validate(filesWithBoilerplate);
-        
-        if (!validation.valid) {
-          console.warn('Import/Export validation errors found:');
-          validation.errors.forEach(error => console.warn(`  - ${error}`));
-          
-          // Add validation errors to the feedback
-          const validationFeedback = `
-⚠️ Code validation found potential issues:
-
-${validation.errors.map(e => `• ${e}`).join('\n')}
-
-These issues may cause build errors. The code has been generated but may need manual fixes.
-          `;
-          
-          // Clean up temp directory
-          await fs.rm(tempPath, { recursive: true, force: true });
-          
-          // Still return the files but with feedback about issues
-          return {
-            files: filesWithBoilerplate,
-            analysis: analysis,
-            plan: {
-              tasks: result.tasks || [],
-              summary: result.summary || 'Project generated successfully'
-            },
-            feedback: validationFeedback,
-          };
-        }
-        
-        // Clean up temp directory
-        await fs.rm(tempPath, { recursive: true, force: true });
-        
-        // Return in the expected format
-        return {
-          files: filesWithBoilerplate,
-          analysis: analysis,
-          plan: {
-            tasks: result.tasks || [],
-            summary: result.summary || 'Project generated successfully'
-          },
-          feedback: null,
-        };
-        
-      } catch (genError) {
-        // Clean up on error
-        await fs.rm(tempPath, { recursive: true, force: true }).catch(() => {});
-        throw genError;
-      }
-      
     } catch (error) {
-      console.error('AgentService processRequirement error:', error);
       throw new Error(`Failed to process requirement: ${error.message}`);
-    }
-  }
-
-  /**
-   * Collect generated files and format them for the old interface
-   */
-  async _collectGeneratedFiles(basePath, filesList) {
-    const files = {};
-    
-    // Read all files from the generated project
-    const readDir = async (dir, prefix = '') => {
-      const entries = await fs.readdir(dir, { withFileTypes: true });
-      
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-        const relativePath = path.join(prefix, entry.name);
-        
-        if (entry.isDirectory()) {
-          // Skip node_modules and .next directories
-          if (entry.name === 'node_modules' || entry.name === '.next') {
-            continue;
-          }
-          await readDir(fullPath, relativePath);
-        } else if (entry.isFile()) {
-          try {
-            const content = await fs.readFile(fullPath, 'utf-8');
-            // Use forward slashes and ensure leading slash
-            const key = '/' + relativePath.split(path.sep).join('/');
-            files[key] = content;
-          } catch (error) {
-            console.warn(`Could not read file ${relativePath}:`, error.message);
-          }
-        }
-      }
-    };
-    
-    await readDir(basePath);
-    
-    return files;
-  }
-
-  /**
-   * Determine project type from requirement
-   */
-  _determineProjectType(requirement) {
-    const lowerReq = requirement.toLowerCase();
-    
-    if (lowerReq.includes('counter')) {
-      return 'counter-app';
-    } else if (lowerReq.includes('todo') || lowerReq.includes('task')) {
-      return 'todo-app';
-    } else if (lowerReq.includes('blog')) {
-      return 'blog-app';
-    } else if (lowerReq.includes('dashboard')) {
-      return 'dashboard-app';
-    } else {
-      return 'web-app';
     }
   }
 }
