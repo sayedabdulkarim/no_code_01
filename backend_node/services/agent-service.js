@@ -2,6 +2,7 @@
 const { LLMService, LLMServiceError } = require("./llm-service");
 const TaskBasedGenerator = require('./task-based-generator');
 const ImportExportValidator = require('./import-export-validator');
+const ContextPatternValidator = require('./context-pattern-validator');
 const { PRDService } = require('./prd-service');
 const { ensureBoilerplateFiles } = require('./boilerplate-templates');
 const path = require('path');
@@ -283,15 +284,28 @@ class AgentService {
         const validator = new ImportExportValidator();
         const validation = validator.validate(filesWithBoilerplate);
         
+        // Validate context patterns
+        const contextValidator = new ContextPatternValidator();
+        const contextValidation = contextValidator.validateAll(filesWithBoilerplate);
+        
+        // Combine validation results
+        const allErrors = [];
         if (!validation.valid) {
-          console.warn('Import/Export validation errors found:');
-          validation.errors.forEach(error => console.warn(`  - ${error}`));
+          allErrors.push(...validation.errors);
+        }
+        if (!contextValidation.valid) {
+          allErrors.push(...contextValidation.errors);
+        }
+        
+        if (allErrors.length > 0) {
+          console.warn('Validation errors found:');
+          allErrors.forEach(error => console.warn(`  - ${error}`));
           
           // Add validation errors to the feedback
           const validationFeedback = `
 ⚠️ Code validation found potential issues:
 
-${validation.errors.map(e => `• ${e}`).join('\n')}
+${allErrors.map(e => `• ${e}`).join('\n')}
 
 These issues may cause build errors. The code has been generated but may need manual fixes.
           `;

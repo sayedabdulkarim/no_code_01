@@ -38,6 +38,12 @@ class QuickFixChecker {
       fixes.push({ type: 'postcss', file: 'postcss.config.js', fixed: true });
     }
     
+    // Check for Context export errors
+    if (buildOutput.includes('has no exported member') && buildOutput.includes('Context')) {
+      const contextFixes = await this.fixContextExportErrors(buildOutput, projectPath, socket);
+      fixes.push(...contextFixes);
+    }
+    
     if (socket && fixes.length > 0) {
       socket.emit('output', `\x1b[32m✓ Applied ${fixes.length} quick fixes\x1b[0m\n`);
     }
@@ -196,6 +202,78 @@ class QuickFixChecker {
       console.error(`Error adding 'use client':`, err);
       return false;
     }
+  }
+  
+  /**
+   * Fix Context export errors
+   */
+  async fixContextExportErrors(buildOutput, projectPath, socket) {
+    const fixes = [];
+    const ContextPatternFixer = require('./context-pattern-fixer');
+    const contextFixer = new ContextPatternFixer();
+    
+    try {
+      // Read all project files
+      const files = {};
+      async function readDir(dir) {
+        const entries = await fs.readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+            await readDir(fullPath);
+          } else if (entry.isFile() && (entry.name.endsWith('.tsx') || entry.name.endsWith('.ts'))) {
+            const relativePath = path.relative(projectPath, fullPath);
+            files[relativePath] = await fs.readFile(fullPath, 'utf-8');
+          }
+        }
+      }
+      
+      await readDir(path.join(projectPath, 'src'));
+      
+      // Extract errors from build output
+      const errors = buildOutput.split('\n').filter(line => 
+        line.includes('has no exported member') && line.includes('Context')
+      );
+      
+      // Fix context exports
+      const { files: fixedFiles, fixes: contextFixes } = contextFixer.fixContextExports(files, errors);
+      
+      // Write fixed files back
+      for (const [filePath, content] of Object.entries(fixedFiles)) {
+        if (content !== files[filePath]) {
+          const fullPath = path.join(projectPath, filePath);
+          await fs.writeFile(fullPath, content, 'utf-8');
+          fixes.push({
+            file: filePath,
+            type: 'context_export',
+            fixed: true
+          });
+        }
+      }
+      
+      // Also ensure all context files are complete
+      const completeFiles = contextFixer.ensureCompleteContext(fixedFiles);
+      for (const [filePath, content] of Object.entries(completeFiles)) {
+        if (content !== fixedFiles[filePath]) {
+          const fullPath = path.join(projectPath, filePath);
+          await fs.writeFile(fullPath, content, 'utf-8');
+          fixes.push({
+            file: filePath,
+            type: 'context_complete',
+            fixed: true
+          });
+        }
+      }
+      
+      if (socket && fixes.length > 0) {
+        socket.emit('output', `  ✓ Fixed ${fixes.length} context export issues\n`);
+      }
+      
+    } catch (err) {
+      console.error('Error fixing context exports:', err);
+    }
+    
+    return fixes;
   }
 }
 

@@ -6,6 +6,7 @@ const QuickFixChecker = require('./quick-fix-checker');
 const CSSConfigValidator = require('./css-config-validator');
 const FontFixer = require('./font-fixer');
 const ConfigFileFixer = require('./config-file-fixer');
+const ContextPatternFixer = require('./context-pattern-fixer');
 
 class LLMBuildValidator {
   constructor(apiKey) {
@@ -15,6 +16,7 @@ class LLMBuildValidator {
     this.cssValidator = new CSSConfigValidator();
     this.fontFixer = new FontFixer();
     this.configFixer = new ConfigFileFixer();
+    this.contextFixer = new ContextPatternFixer();
   }
 
   /**

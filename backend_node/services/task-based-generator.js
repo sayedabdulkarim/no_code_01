@@ -225,6 +225,51 @@ export default function PageName() {
 }
 \`\`\`
 
+For Context files (MUST follow this exact pattern):
+\`\`\`typescript
+'use client';
+
+import { createContext, useContext, useState, ReactNode } from 'react';
+
+// Type definitions
+interface ItemType {
+  // fields
+}
+
+interface [Name]ContextType {
+  // state and methods
+}
+
+// Create context - MUST export
+export const [Name]Context = createContext<[Name]ContextType | undefined>(undefined);
+
+// Custom hook - MUST export with exact naming
+export function use[Name]Context() {
+  const context = useContext([Name]Context);
+  if (!context) {
+    throw new Error('use[Name]Context must be used within [Name]Provider');
+  }
+  return context;
+}
+
+// Provider component - MUST export
+export function [Name]Provider({ children }: { children: ReactNode }) {
+  // state and logic
+  
+  return (
+    <[Name]Context.Provider value={{...}}>
+      {children}
+    </[Name]Context.Provider>
+  );
+}
+\`\`\`
+
+CRITICAL: When creating a Context (e.g., TodoContext):
+- MUST export: TodoContext, useTodoContext, TodoProvider
+- Hook MUST be named use[Name]Context (e.g., useTodoContext)
+- Provider MUST be named [Name]Provider (e.g., TodoProvider)
+- Components importing from context MUST import the exact names
+
 Return ONLY a valid JSON object with this structure:
 {
   "files": [
@@ -316,11 +361,17 @@ Return ONLY a valid JSON object with this structure:
           // Create directory if needed
           await fs.mkdir(path.dirname(filePath), { recursive: true });
           
-          // Write file
-          await fs.writeFile(filePath, file.content, 'utf-8');
+          // Write file - ensure content is string
+          let content = file.content;
+          if (typeof content !== 'string') {
+            // If it's an object, stringify it
+            content = JSON.stringify(content, null, 2);
+            console.warn(`Warning: Task ${task.id} returned object content for ${file.path}, converting to string`);
+          }
+          await fs.writeFile(filePath, content, 'utf-8');
           
-          // Track generated files
-          generatedFiles[file.path] = file.content;
+          // Track generated files - use the fixed content
+          generatedFiles[file.path] = content;
         }
 
         results.push({
@@ -431,7 +482,21 @@ Return ONLY a valid JSON object with this structure:
   parseJSON(content) {
     try {
       // Try direct parsing first
-      return JSON.parse(content);
+      const parsed = JSON.parse(content);
+      
+      // Validate and fix files array
+      if (parsed.files && Array.isArray(parsed.files)) {
+        parsed.files = parsed.files.map(file => {
+          // Ensure content is string
+          if (file.content && typeof file.content !== 'string') {
+            console.warn(`Converting object content to string for ${file.path}`);
+            file.content = JSON.stringify(file.content, null, 2);
+          }
+          return file;
+        });
+      }
+      
+      return parsed;
     } catch (error) {
       // Try removing markdown formatting
       const cleaned = content.replace(/```(json)?/g, "").trim();
@@ -443,7 +508,21 @@ Return ONLY a valid JSON object with this structure:
       }
       
       try {
-        return JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        
+        // Validate and fix files array
+        if (parsed.files && Array.isArray(parsed.files)) {
+          parsed.files = parsed.files.map(file => {
+            // Ensure content is string
+            if (file.content && typeof file.content !== 'string') {
+              console.warn(`Converting object content to string for ${file.path}`);
+              file.content = JSON.stringify(file.content, null, 2);
+            }
+            return file;
+          });
+        }
+        
+        return parsed;
       } catch (parseError) {
         // Try to fix common JSON issues
         const fixed = jsonMatch[0]
@@ -452,7 +531,21 @@ Return ONLY a valid JSON object with this structure:
           .replace(/\r/g, "\\r")
           .replace(/\t/g, "\\t");
           
-        return JSON.parse(fixed);
+        const parsed = JSON.parse(fixed);
+        
+        // Validate and fix files array
+        if (parsed.files && Array.isArray(parsed.files)) {
+          parsed.files = parsed.files.map(file => {
+            // Ensure content is string
+            if (file.content && typeof file.content !== 'string') {
+              console.warn(`Converting object content to string for ${file.path}`);
+              file.content = JSON.stringify(file.content, null, 2);
+            }
+            return file;
+          });
+        }
+        
+        return parsed;
       }
     }
   }
