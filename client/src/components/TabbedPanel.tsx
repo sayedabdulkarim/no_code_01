@@ -46,7 +46,7 @@ const TabbedPanel: React.FC<TabbedPanelProps> = (props) => {
       </TabHeader>
       
       <TabContent>
-        {activeTab === 'terminal' ? (
+        <TabPanel show={activeTab === 'terminal'}>
           <TerminalWithHeader
             addErrorMessage={props.addErrorMessage}
             addMessage={props.addMessage}
@@ -56,12 +56,13 @@ const TabbedPanel: React.FC<TabbedPanelProps> = (props) => {
             socketId={props.socketId}
             loading={props.loading}
           />
-        ) : (
+        </TabPanel>
+        <TabPanel show={activeTab === 'preview'}>
           <Preview 
             projectUrl={props.projectUrl}
             projectName={props.projectName}
           />
-        )}
+        </TabPanel>
       </TabContent>
     </Container>
   );
@@ -106,6 +107,17 @@ const TabIcon = styled.span`
 const TabContent = styled.div`
   flex: 1;
   overflow: hidden;
+  position: relative;
+`;
+
+const TabPanel = styled.div<{ show: boolean }>`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: ${props => props.show ? 'block' : 'none'};
+  height: 100%;
 `;
 
 export default TabbedPanel;
