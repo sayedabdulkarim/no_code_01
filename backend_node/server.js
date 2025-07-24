@@ -32,7 +32,7 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(
   cors({
     origin: ["http://localhost:3000", "http://localhost:3001"], // Allow multiple origins
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
 );
@@ -64,7 +64,7 @@ app.use("/api", buildValidationRouter);
 app.use(fileSystemRouter);
 
 // Store io reference for other routes
-app.set('io', io);
+app.set("io", io);
 
 // Proxy endpoint for OpenRouter API
 app.post("/api/proxy/openrouter", async (req, res) => {

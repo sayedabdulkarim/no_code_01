@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from '@emotion/styled';
 import MonacoEditor from '@monaco-editor/react';
 import axios from 'axios';
@@ -28,8 +28,6 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   
-  // Add ref to store save function for keyboard shortcut
-  const saveFileRef = useRef<(filePath: string) => Promise<void>>();
 
   // Fetch file tree when project changes
   useEffect(() => {
@@ -38,20 +36,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
     }
   }, [projectName]);
   
-  // Keyboard shortcut support (Ctrl+S to save)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (activeFile && saveFileRef.current) {
-          saveFileRef.current(activeFile);
-        }
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeFile]);
+  // Remove keyboard shortcut since we have auto-save
 
   const fetchFileTree = async () => {
     if (!projectName) return;
@@ -121,38 +106,44 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
     }
   };
 
-  // Update ref when saveFile changes
-  useEffect(() => {
-    saveFileRef.current = saveFile;
-  });
-  
-  const saveFile = async (filePath: string) => {
-    if (!projectName) return;
-    
-    const file = openFiles.get(filePath);
-    if (!file || !file.isDirty) return;
 
-    setSaving(true);
-    try {
-      await axios.put(
-        `http://localhost:5001/api/project-file/${projectName}/${filePath}`,
-        { content: file.content }
-      );
-      
-      // Mark file as saved
-      const newOpenFiles = new Map(openFiles);
-      newOpenFiles.set(filePath, { ...file, isDirty: false });
-      setOpenFiles(newOpenFiles);
-      
-      // Show success message (you might want to add a toast notification here)
-      console.log(`File saved: ${filePath}`);
-    } catch (error) {
-      console.error('Failed to save file:', error);
-      alert('Failed to save file. Please try again.');
-    } finally {
-      setSaving(false);
-    }
+  // Debounce function
+  const debounce = (func: Function, wait: number) => {
+    let timeout: NodeJS.Timeout;
+    return (...args: any[]) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func(...args), wait);
+    };
   };
+
+  // Auto-save function
+  const autoSave = useCallback(
+    debounce(async (filePath: string, content: string) => {
+      if (!projectName) return;
+      
+      try {
+        await axios.put(
+          `http://localhost:5001/api/project-file/${projectName}/${filePath}`,
+          { content }
+        );
+        
+        // Mark file as saved
+        setOpenFiles(prev => {
+          const newMap = new Map(prev);
+          const file = newMap.get(filePath);
+          if (file) {
+            newMap.set(filePath, { ...file, isDirty: false });
+          }
+          return newMap;
+        });
+        
+        console.log(`Auto-saved: ${filePath}`);
+      } catch (error) {
+        console.error('Failed to auto-save file:', error);
+      }
+    }, 1000), // Auto-save after 1 second of inactivity
+    [projectName]
+  );
 
   const handleEditorChange = (value: string | undefined) => {
     if (!activeFile || value === undefined) return;
@@ -167,6 +158,9 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
       isDirty: true
     });
     setOpenFiles(newOpenFiles);
+    
+    // Trigger auto-save
+    autoSave(activeFile, value);
   };
 
   const getFileIcon = (fileName: string) => {
@@ -272,12 +266,9 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
             <>
               <EditorHeader>
                 <FilePath>{activeFile}</FilePath>
-                <SaveButton 
-                  onClick={() => saveFile(activeFile)}
-                  disabled={!openFiles.get(activeFile)?.isDirty || saving}
-                >
-                  {saving ? 'Saving...' : 'Save'}
-                </SaveButton>
+                {openFiles.get(activeFile)?.isDirty && (
+                  <SavingIndicator>Saving...</SavingIndicator>
+                )}
               </EditorHeader>
               <MonacoEditor
                 height="calc(100% - 40px)"
@@ -499,23 +490,11 @@ const FilePath = styled.span`
   font-family: monospace;
 `;
 
-const SaveButton = styled.button`
-  padding: 4px 12px;
-  background: ${props => props.theme.colors.primary};
-  color: white;
-  border: none;
-  border-radius: 4px;
+const SavingIndicator = styled.span`
   font-size: 12px;
-  cursor: pointer;
-  
-  &:hover:not(:disabled) {
-    opacity: 0.8;
-  }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+  color: ${props => props.theme.colors.primary};
+  opacity: 0.7;
+  font-style: italic;
 `;
 
 const EmptyEditor = styled.div`

@@ -24,20 +24,21 @@ router.get("/api/project-files/:projectName", async (req, res) => {
       
       for (const item of items) {
         const itemPath = path.join(dirPath, item.name);
-        const itemRelativePath = path.join(relativePath, item.name);
+        // Use forward slashes for consistent paths across platforms
+        const itemRelativePath = relativePath ? `${relativePath}/${item.name}` : item.name;
         
         if (item.isDirectory()) {
           const children = await readDirectory(itemPath, itemRelativePath);
           result.push({
             name: item.name,
-            path: itemRelativePath,
+            path: itemRelativePath.replace(/\\/g, '/'),
             type: "directory",
             children
           });
         } else {
           result.push({
             name: item.name,
-            path: itemRelativePath,
+            path: itemRelativePath.replace(/\\/g, '/'),
             type: "file"
           });
         }
