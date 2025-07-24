@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import TerminalWithHeader from './TerminalWithHeader';
 import Preview from './Preview';
+import Editor from './Editor';
 import { CommandSuggestion } from '../types/terminal';
 
 interface TabbedPanelProps {
@@ -24,7 +25,7 @@ interface TabbedPanelProps {
 }
 
 const TabbedPanel: React.FC<TabbedPanelProps> = (props) => {
-  const [activeTab, setActiveTab] = useState<'terminal' | 'preview'>('terminal');
+  const [activeTab, setActiveTab] = useState<'terminal' | 'preview' | 'editor'>('terminal');
 
   return (
     <Container>
@@ -43,6 +44,13 @@ const TabbedPanel: React.FC<TabbedPanelProps> = (props) => {
           <TabIcon>🌐</TabIcon>
           Preview
         </Tab>
+        <Tab 
+          active={activeTab === 'editor'} 
+          onClick={() => setActiveTab('editor')}
+        >
+          <TabIcon>📝</TabIcon>
+          Editor
+        </Tab>
       </TabHeader>
       
       <TabContent>
@@ -60,6 +68,11 @@ const TabbedPanel: React.FC<TabbedPanelProps> = (props) => {
         <TabPanel show={activeTab === 'preview'}>
           <Preview 
             projectUrl={props.projectUrl}
+            projectName={props.projectName}
+          />
+        </TabPanel>
+        <TabPanel show={activeTab === 'editor'}>
+          <Editor 
             projectName={props.projectName}
           />
         </TabPanel>

@@ -20,6 +20,7 @@ const updateProjectV2Router = require("./services/update-project-v2");
 const listProjectsRouter = require("./services/list-projects");
 const fixPageIntegrationRouter = require("./services/fix-page-integration");
 const buildValidationRouter = require("./routes/build-validation");
+const fileSystemRouter = require("./routes/file-system");
 
 require("dotenv").config(); // Load environment variables
 
@@ -60,6 +61,7 @@ app.use("/api", updateProjectV2Router);
 app.use("/api", listProjectsRouter);
 app.use("/api", fixPageIntegrationRouter);
 app.use("/api", buildValidationRouter);
+app.use(fileSystemRouter);
 
 // Store io reference for other routes
 app.set('io', io);
