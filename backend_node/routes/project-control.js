@@ -1,5 +1,6 @@
 const express = require("express");
 const projectManager = require("../services/project-manager");
+const path = require("path");
 
 const router = express.Router();
 
@@ -57,6 +58,34 @@ router.post("/api/start-project", async (req, res) => {
     });
   } catch (error) {
     console.error("Error starting project:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Run a project by name
+router.post("/api/run-project", async (req, res) => {
+  try {
+    const { projectName, socketId } = req.body;
+    
+    if (!projectName) {
+      return res.status(400).json({ error: "Project name is required" });
+    }
+    
+    // Build the project path
+    const projectPath = path.join(__dirname, "..", "..", "client", "user-projects", projectName);
+    
+    // Get socket if provided
+    const io = req.app.get('io');
+    const socket = socketId && io ? io.sockets.sockets.get(socketId) : null;
+    
+    const projectInfo = await projectManager.startProject(projectPath, socket);
+    
+    res.json({
+      message: "Project started successfully",
+      ...projectInfo
+    });
+  } catch (error) {
+    console.error("Error running project:", error);
     res.status(500).json({ error: error.message });
   }
 });

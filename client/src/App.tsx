@@ -7,8 +7,8 @@ import { ChatThread } from "./components/ChatThread";
 import { EditorPanel } from "./components/EditorPanel";
 import { Layout, WorkspaceLayout } from "./components/Layout";
 import { PRDPanel } from "./components/PRDPanel";
-import TerminalWithHeader from "./components/TerminalWithHeader";
 import RunningProjects from "./components/RunningProjects";
+import TabbedPanel from "./components/TabbedPanel";
 import { darkTheme } from "./theme";
 import { Message } from "./types/chat";
 import { CommandSuggestion } from "./types/terminal";
@@ -45,7 +45,8 @@ interface Project {
 function App() {
   const [requirement, setRequirement] = useState("");
   const [loading, setLoading] = useState(false);
-  const [prd, setPRD] = useState<string | null>(null);
+  // const [prd, setPRD] = useState<string | null>(null);
+  const [prd, setPRD] = useState<string | null>("true");
   const [response, setResponse] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -58,6 +59,7 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [updateRequirement, setUpdateRequirement] = useState("");
+  const [projectUrl, setProjectUrl] = useState<string | null>(null);
 
   const [test, setTest] = useState(false);
 
@@ -275,16 +277,25 @@ function App() {
 
       // Check if project URL is available (dev server started)
       if (result.data.url) {
-        addMessage(`🚀 Development server running at: ${result.data.url}`, false);
-        addMessage(`You can open your project in the browser at the above URL.`, false);
-        
+        addMessage(
+          `🚀 Development server running at: ${result.data.url}`,
+          false
+        );
+        addMessage(
+          `You can open your project in the browser at the above URL.`,
+          false
+        );
+
         // Open the project in a new tab (optional - you can comment this out if you don't want auto-open)
         // window.open(result.data.url, '_blank');
       }
 
       // Update the project with the PRD content using task-based approach
       addMessage("Enhancing project with AI-generated content...", false);
-      addMessage("Using task-based code generation for better results...", false);
+      addMessage(
+        "Using task-based code generation for better results...",
+        false
+      );
 
       let updateResult;
       try {
@@ -294,32 +305,41 @@ function App() {
           {
             projectName,
             requirements: prd,
-            socketId // Pass socketId for real-time progress updates
+            socketId, // Pass socketId for real-time progress updates
           }
         );
 
-      if (updateResult.data && updateResult.data.message) {
-        addMessage(`✅ ${updateResult.data.message}`, false);
-        
-        // Show task summary if available
-        if (updateResult.data.summary) {
-          const summary = updateResult.data.summary;
-          addMessage(`📊 Summary: ${summary.successful}/${summary.total} tasks completed successfully`, false);
-          if (summary.failed > 0) {
-            addMessage(`⚠️ ${summary.failed} tasks failed - check terminal for details`, false);
+        if (updateResult.data && updateResult.data.message) {
+          addMessage(`✅ ${updateResult.data.message}`, false);
+
+          // Show task summary if available
+          if (updateResult.data.summary) {
+            const summary = updateResult.data.summary;
+            addMessage(
+              `📊 Summary: ${summary.successful}/${summary.total} tasks completed successfully`,
+              false
+            );
+            if (summary.failed > 0) {
+              addMessage(
+                `⚠️ ${summary.failed} tasks failed - check terminal for details`,
+                false
+              );
+            }
+            addMessage(`📁 Generated ${summary.generatedFiles} files`, false);
           }
-          addMessage(`📁 Generated ${summary.generatedFiles} files`, false);
+        } else if (updateResult.data && updateResult.data.error) {
+          setError(updateResult.data.error);
+          addErrorMessage(updateResult.data.error);
+        } else {
+          addMessage("Project updated, but no message returned.", false);
         }
-      } else if (updateResult.data && updateResult.data.error) {
-        setError(updateResult.data.error);
-        addErrorMessage(updateResult.data.error);
-      } else {
-        addMessage("Project updated, but no message returned.", false);
-      }
       } catch (updateError: any) {
         console.error("Error with v2 update, falling back to v1:", updateError);
-        addMessage("⚠️ Task-based generation failed, trying standard generation...", false);
-        
+        addMessage(
+          "⚠️ Task-based generation failed, trying standard generation...",
+          false
+        );
+
         // Fallback to original update-project endpoint
         try {
           updateResult = await axios.post(
@@ -329,28 +349,34 @@ function App() {
               requirements: prd,
             }
           );
-          
+
           if (updateResult.data && updateResult.data.message) {
-            addMessage(`✅ ${updateResult.data.message} (using fallback method)`, false);
+            addMessage(
+              `✅ ${updateResult.data.message} (using fallback method)`,
+              false
+            );
           }
         } catch (fallbackError: any) {
           console.error("Fallback also failed:", fallbackError);
           addErrorMessage(
             `Failed to generate code: ${
-              fallbackError.response?.data?.error || 
-              fallbackError.response?.data?.details || 
+              fallbackError.response?.data?.error ||
+              fallbackError.response?.data?.details ||
               fallbackError.message
             }`
           );
-          
+
           // Don't throw the error - project was still created successfully
-          addMessage("⚠️ Project created but code generation failed. You can retry later.", false);
+          addMessage(
+            "⚠️ Project created but code generation failed. You can retry later.",
+            false
+          );
         }
       }
 
       // Add the project path to the terminal messages
       addMessage(`📁 Project Path: ${result.data.projectPath}`, false);
-      
+
       // Remind about the dev server URL if available
       if (result.data.url) {
         addMessage(`🔗 Access your project at: ${result.data.url}`, false);
@@ -490,10 +516,52 @@ function App() {
     }
   };
 
+  // Handle running a project
+  const handleRunProject = async (projectName: string) => {
+    try {
+      setLoading(true);
+      addMessage(`Starting ${projectName}...`, false);
+      
+      // First, stop all running projects
+      try {
+        const runningProjects = await axios.get('http://localhost:5001/api/running-projects');
+        const projects = runningProjects.data.projects || [];
+        
+        // Stop all running projects
+        for (const project of projects) {
+          addMessage(`Stopping ${project.name}...`, false);
+          await axios.post('http://localhost:5001/api/stop-project', { projectName: project.name });
+        }
+      } catch (stopError) {
+        console.error('Error stopping projects:', stopError);
+      }
+      
+      // Run the selected project
+      const result = await axios.post("http://localhost:5001/api/run-project", {
+        projectName,
+        socketId,
+      });
+
+      if (result.data.url) {
+        setProjectUrl(result.data.url);
+        addMessage(`✅ Project is running at: ${result.data.url}`, false);
+      } else {
+        addMessage(`⚠️ Project started but no URL returned`, false);
+      }
+    } catch (err: any) {
+      console.error("Error running project:", err);
+      addErrorMessage(
+        `Failed to run project: ${err.response?.data?.error || err.message}`
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ThemeProvider theme={darkTheme}>
-      <button onClick={() => console.log({ projects }, " ppp")}>Hello</button>
-      <button onClick={() => setTest(!test)}>Test</button>
+      {/* <button onClick={() => console.log({ projects }, " ppp")}>Hello</button>
+      <button onClick={() => setTest(!test)}>Test</button> */}
       <ProjectManagementPanel>
         <h2>Your Projects</h2>
         <ProjectPillContainer>
@@ -501,7 +569,10 @@ function App() {
             <ProjectPill
               key={project.name}
               isSelected={selectedProject === project.name}
-              onClick={() => setSelectedProject(project.name)}
+              onClick={() => {
+                setSelectedProject(project.name);
+                handleRunProject(project.name);
+              }}
             >
               {project.name}
             </ProjectPill>
@@ -518,6 +589,13 @@ function App() {
               rows={5}
             />
             <ButtonContainer>
+              <UpdateButton
+                onClick={() => handleRunProject(selectedProject)}
+                disabled={loading}
+                style={{ backgroundColor: "#28a745" }}
+              >
+                {loading ? "Starting..." : "Run Project"}
+              </UpdateButton>
               <UpdateButton
                 onClick={handleUpdateProject}
                 disabled={loading || !updateRequirement.trim()}
@@ -539,11 +617,15 @@ function App() {
                     );
                     addMessage(`✅ ${response.data.message}`, false);
                   } catch (error: any) {
-                    addErrorMessage(`Failed to fix page: ${error.response?.data?.error || error.message}`);
+                    addErrorMessage(
+                      `Failed to fix page: ${
+                        error.response?.data?.error || error.message
+                      }`
+                    );
                   }
                 }}
                 disabled={loading}
-                style={{ backgroundColor: '#28a745' }}
+                style={{ backgroundColor: "#28a745" }}
               >
                 Fix Page Display
               </UpdateButton>
@@ -573,7 +655,7 @@ function App() {
               />
             </Panel>
             <TerminalPanel>
-              <TerminalWithHeader
+              <TabbedPanel
                 addErrorMessage={addErrorMessage}
                 addMessage={addMessage}
                 addSuggestions={addSuggestions}
@@ -581,6 +663,8 @@ function App() {
                 onSocketReady={handleSocketReady}
                 socketId={socketId}
                 loading={loading}
+                projectUrl={projectUrl || undefined}
+                projectName={selectedProject || undefined}
               />
             </TerminalPanel>
           </DualPanelLayout>
