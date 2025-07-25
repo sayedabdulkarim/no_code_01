@@ -44,14 +44,14 @@ interface Project {
 }
 
 function App() {
-  const [requirement, setRequirement] = useState("");
+  const [requirement, setRequirement] = useState("`);
   const [loading, setLoading] = useState(false);
   const [prd, setPRD] = useState<string | null>(null);
-  // const [prd, setPRD] = useState<string | null>("true");
+  // const [prd, setPRD] = useState<string | null>("true`);
   const [response, setResponse] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [activeFile, setActiveFile] = useState("index.html");
+  const [activeFile, setActiveFile] = useState("index.html`);
   const [messages, setMessages] = useState<Message[]>([]);
   const [files, setFiles] = useState<Record<string, string>>({});
   const [socketId, setSocketId] = useState<string | null>(null);
@@ -59,7 +59,7 @@ function App() {
   // Project management states
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
-  const [updateRequirement, setUpdateRequirement] = useState("");
+  const [updateRequirement, setUpdateRequirement] = useState("`);
   const [projectUrl, setProjectUrl] = useState<string | null>(null);
 
   const [test, setTest] = useState(false);
@@ -68,7 +68,7 @@ function App() {
   const [terminalMessages, setTerminalMessages] = useState<TerminalMessage[]>([
     {
       id: 1,
-      text: "Welcome to the terminal. Error messages will appear here.",
+      text: "Welcome to the terminal. Error messages will appear here.`,
       isError: false,
       timestamp: new Date(),
     },
@@ -76,7 +76,7 @@ function App() {
 
   // Callback function to receive socket ID from Terminal
   const handleSocketReady = useCallback((id: string) => {
-    console.log("Terminal socket is ready with ID:", id);
+    console.log("Terminal socket is ready with ID:`, id);
     setSocketId(id);
   }, []);
 
@@ -126,7 +126,7 @@ function App() {
   const runCommand = useCallback(
     (command: string) => {
       if (!command || typeof command !== "string") {
-        console.warn("Invalid command passed to runCommand:", command);
+        console.warn("Invalid command passed to runCommand:`, command);
         return;
       }
 
@@ -137,12 +137,12 @@ function App() {
           // Also add the command as a message to show what was executed
           addMessage(`Executed: ${command}`, false);
         } catch (e) {
-          console.error("Error running command:", e);
+          console.error("Error running command:`, e);
           // Add an error message if the command execution fails
           addMessage(`Failed to execute: ${command}. Please try again.`, true);
         }
       } else {
-        console.warn("runTerminalCommand function not available");
+        console.warn("runTerminalCommand function not available`);
         addMessage(`Unable to run command: Terminal not ready`, true);
       }
     },
@@ -155,9 +155,9 @@ function App() {
     setMessages((prev) => [
       ...prev,
       {
-        type: "user",
+        type: "user`,
         content: message,
-        category: "requirement",
+        category: "requirement`,
       },
     ]);
 
@@ -165,16 +165,16 @@ function App() {
     try {
       // Generate PRD first
       const prdResult = await axios.post<PRDResponse>(
-        `${API_URL}/generate-prd",
+        `${API_URL}/generate-prd`,
         { requirement: message }
       );
 
       setMessages((prev) => [
         ...prev,
         {
-          type: "agent",
+          type: "agent`,
           content: prdResult.data.prd,
-          category: "prd",
+          category: "prd`,
         },
       ]);
 
@@ -182,14 +182,14 @@ function App() {
       setPRD(prdResult.data.prd);
       setRequirement(message);
     } catch (err) {
-      console.error("Error:", err);
-      setError("Something went wrong. Please try again.");
+      console.error("Error:`, err);
+      setError("Something went wrong. Please try again.`);
       setMessages((prev) => [
         ...prev,
         {
-          type: "agent",
-          content: "Sorry, there was an error. Please try again.",
-          category: "error",
+          type: "agent`,
+          content: "Sorry, there was an error. Please try again.`,
+          category: "error`,
         },
       ]);
     } finally {
@@ -206,7 +206,7 @@ function App() {
     setLoading(true);
     try {
       const result = await axios.post<GenerateResponse>(
-        `${API_URL}/approve-prd",
+        `${API_URL}/approve-prd`,
         { requirement, prd, approved }
       );
 
@@ -214,9 +214,9 @@ function App() {
         setMessages((prev) => [
           ...prev,
           {
-            type: "agent",
+            type: "agent`,
             content: result.data.analysis!,
-            category: "analysis",
+            category: "analysis`,
           },
         ]);
       }
@@ -224,9 +224,9 @@ function App() {
         setMessages((prev) => [
           ...prev,
           {
-            type: "agent",
+            type: "agent`,
             content: result.data.plan!,
-            category: "plan",
+            category: "plan`,
           },
         ]);
       }
@@ -234,8 +234,8 @@ function App() {
       setResponse(result.data);
       setPRD(null);
     } catch (err) {
-      console.error("Error:", err);
-      setError("Failed to generate UI. Please try again.");
+      console.error("Error:`, err);
+      setError("Failed to generate UI. Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -244,22 +244,22 @@ function App() {
   // Initialize Next.js project with PRD
   const handleInitializeProject = async () => {
     if (!prd) {
-      setError("No PRD available to initialize the project.");
+      setError("No PRD available to initialize the project.`);
       return;
     }
 
     if (!socketId) {
-      addMessage("Waiting for terminal connection to be established...", false);
+      addMessage("Waiting for terminal connection to be established...`, false);
       // Wait briefly for socket connection
       await new Promise((resolve) => setTimeout(resolve, 1000));
       if (!socketId) {
-        setError("Terminal connection not established. Please try again.");
+        setError("Terminal connection not established. Please try again.`);
         return;
       }
     }
 
     setLoading(true);
-    addMessage("Starting project initialization...", false);
+    addMessage("Starting project initialization...`, false);
 
     try {
       // Clear any previous error
@@ -269,7 +269,7 @@ function App() {
       addMessage(`Initializing project with socket ID: ${socketId}`, false);
 
       const result = await axios.post(
-        `${API_URL}/api/initialize-project",
+        `${API_URL}/api/initialize-project`,
         { prd, socketId }
       );
 
@@ -292,9 +292,9 @@ function App() {
       }
 
       // Update the project with the PRD content using task-based approach
-      addMessage("Enhancing project with AI-generated content...", false);
+      addMessage("Enhancing project with AI-generated content...`, false);
       addMessage(
-        "Using task-based code generation for better results...",
+        "Using task-based code generation for better results...`,
         false
       );
 
@@ -302,7 +302,7 @@ function App() {
       try {
         // Try the new v2 endpoint first
         updateResult = await axios.post(
-          `${API_URL}/api/update-project-v2",
+          `${API_URL}/api/update-project-v2`,
           {
             projectName,
             requirements: prd,
@@ -332,19 +332,19 @@ function App() {
           setError(updateResult.data.error);
           addErrorMessage(updateResult.data.error);
         } else {
-          addMessage("Project updated, but no message returned.", false);
+          addMessage("Project updated, but no message returned.`, false);
         }
       } catch (updateError: any) {
-        console.error("Error with v2 update, falling back to v1:", updateError);
+        console.error("Error with v2 update, falling back to v1:`, updateError);
         addMessage(
-          "⚠️ Task-based generation failed, trying standard generation...",
+          "⚠️ Task-based generation failed, trying standard generation...`,
           false
         );
 
         // Fallback to original update-project endpoint
         try {
           updateResult = await axios.post(
-            `${API_URL}/api/update-project",
+            `${API_URL}/api/update-project`,
             {
               projectName,
               requirements: prd,
@@ -358,7 +358,7 @@ function App() {
             );
           }
         } catch (fallbackError: any) {
-          console.error("Fallback also failed:", fallbackError);
+          console.error("Fallback also failed:`, fallbackError);
           addErrorMessage(
             `Failed to generate code: ${
               fallbackError.response?.data?.error ||
@@ -369,7 +369,7 @@ function App() {
 
           // Don't throw the error - project was still created successfully
           addMessage(
-            "⚠️ Project created but code generation failed. You can retry later.",
+            "⚠️ Project created but code generation failed. You can retry later.`,
             false
           );
         }
@@ -390,12 +390,12 @@ function App() {
       fetchProjects();
 
       addMessage(
-        "Project initialization complete! You can now start working on your project.",
+        "Project initialization complete! You can now start working on your project.`,
         false
       );
     } catch (err: any) {
-      console.error("Error initializing project:", err);
-      setError("Failed to initialize the project. Please try again.");
+      console.error("Error initializing project:`, err);
+      setError("Failed to initialize the project. Please try again.`);
       addErrorMessage(
         `Failed to initialize the project: ${
           err.response?.data?.details || err.message
@@ -423,12 +423,12 @@ function App() {
   // Extract fetchProjects as a reusable function
   const fetchProjects = async () => {
     try {
-      const result = await axios.get(`${API_URL}/api/list-projects");
-      console.log("Fetched projects:", result.data);
+      const result = await axios.get(`${API_URL}/api/list-projects`);
+      console.log("Fetched projects:`, result.data);
       setProjects(result.data.projects || []);
     } catch (err) {
-      console.error("Error fetching projects:", err);
-      setError("Failed to fetch projects");
+      console.error("Error fetching projects:`, err);
+      setError("Failed to fetch projects`);
     }
   };
 
@@ -440,14 +440,14 @@ function App() {
   // Handle project update
   const handleUpdateProject = async () => {
     if (!selectedProject || !updateRequirement.trim()) {
-      setError("Please select a project and enter update requirements");
+      setError("Please select a project and enter update requirements`);
       return;
     }
 
     setLoading(true);
     try {
       const result = await axios.post(
-        `${API_URL}/api/update-project",
+        `${API_URL}/api/update-project`,
         {
           projectName: selectedProject,
           requirements: updateRequirement,
@@ -461,23 +461,23 @@ function App() {
         setMessages((prev) => [
           ...prev,
           {
-            type: "agent",
+            type: "agent`,
             content: `Project ${selectedProject} updated successfully! ${
               result.data.explanation || ""
             }`,
-            category: "success",
+            category: "success`,
           },
         ]);
 
         // Reset update requirement
-        setUpdateRequirement("");
+        setUpdateRequirement("`);
       } else if (result.data && result.data.error) {
         setError(result.data.error);
         addErrorMessage(result.data.error);
       }
     } catch (err: any) {
-      console.error("Error updating project:", err);
-      setError("Failed to update project");
+      console.error("Error updating project:`, err);
+      setError("Failed to update project`);
       addErrorMessage(
         "Failed to update project: " +
           (err.response?.data?.error || err.message)
@@ -501,15 +501,15 @@ function App() {
         setMessages((prev) => [
           ...prev,
           {
-            type: "agent",
+            type: "agent`,
             content: `Project history cleared for ${projectName}. Future updates will start from a clean slate.`,
-            category: "success",
+            category: "success`,
           },
         ]);
       }
     } catch (err: any) {
-      console.error("Error clearing project history:", err);
-      setError("Failed to clear project history");
+      console.error("Error clearing project history:`, err);
+      setError("Failed to clear project history`);
       addErrorMessage(
         "Failed to clear project history: " +
           (err.response?.data?.error || err.message)
@@ -524,7 +524,7 @@ function App() {
       
       // Wait for socket connection if not available
       if (!socketId) {
-        addMessage("Waiting for terminal connection...", false);
+        addMessage("Waiting for terminal connection...`, false);
         // Wait up to 3 seconds for socket connection
         let attempts = 0;
         while (!socketId && attempts < 30) {
@@ -532,7 +532,7 @@ function App() {
           attempts++;
         }
         if (!socketId) {
-          addMessage("⚠️ Terminal connection not established, proceeding anyway...", false);
+          addMessage("⚠️ Terminal connection not established, proceeding anyway...`, false);
         }
       }
       
@@ -541,23 +541,23 @@ function App() {
       // First, stop all running projects
       try {
         const runningProjects = await axios.get(
-          `${API_URL}/api/running-projects"
+          `${API_URL}/api/running-projects`
         );
         const projects = runningProjects.data.projects || [];
 
         // Stop all running projects
         for (const project of projects) {
           addMessage(`Stopping ${project.name}...`, false);
-          await axios.post(`${API_URL}/api/stop-project", {
+          await axios.post(`${API_URL}/api/stop-project`, {
             projectName: project.name,
           });
         }
       } catch (stopError) {
-        console.error("Error stopping projects:", stopError);
+        console.error("Error stopping projects:`, stopError);
       }
 
       // Run the selected project
-      const result = await axios.post(`${API_URL}/api/run-project", {
+      const result = await axios.post(`${API_URL}/api/run-project`, {
         projectName,
         socketId,
       });
@@ -569,7 +569,7 @@ function App() {
         addMessage(`⚠️ Project started but no URL returned`, false);
       }
     } catch (err: any) {
-      console.error("Error running project:", err);
+      console.error("Error running project:`, err);
       addErrorMessage(
         `Failed to run project: ${err.response?.data?.error || err.message}`
       );
@@ -635,7 +635,7 @@ function App() {
                 onClick={async () => {
                   try {
                     const response = await axios.post(
-                      `${API_URL}/api/fix-page-integration",
+                      `${API_URL}/api/fix-page-integration`,
                       { projectName: selectedProject }
                     );
                     addMessage(`✅ ${response.data.message}`, false);

@@ -599,7 +599,7 @@ const Terminal: React.FC<TerminalProps> = ({
 
                       // Call our backend API instead of direct command fixer
                       const response = await axios.post(
-                        `${API_URL}/api/fix-command",
+                        `${API_URL}/api/fix-command`,
                         {
                           command: lastCommandRef.current,
                         }
@@ -650,7 +650,7 @@ const Terminal: React.FC<TerminalProps> = ({
 
                           // Call our backend API with the simplified command
                           const response = await axios.post(
-                            `${API_URL}/api/fix-command",
+                            `${API_URL}/api/fix-command`,
                             {
                               command: simplifiedCommand,
                             }
@@ -704,7 +704,7 @@ const Terminal: React.FC<TerminalProps> = ({
 
                         // Make one final call to the backend API
                         const response = await axios.post(
-                          `${API_URL}/api/fix-command",
+                          `${API_URL}/api/fix-command`,
                           {
                             command: lastCommandRef.current,
                           }
