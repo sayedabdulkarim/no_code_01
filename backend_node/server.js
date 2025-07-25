@@ -1,7 +1,13 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
-const pty = require("node-pty");
+let pty;
+try {
+  pty = require("node-pty");
+} catch (e) {
+  console.warn("node-pty not available - terminal features will be limited");
+  pty = null;
+}
 const os = require("os");
 const cors = require("cors");
 const axios = require("axios"); // Make sure axios is installed
@@ -180,7 +186,29 @@ const shell = os.platform() === "win32" ? "powershell.exe" : "zsh";
 io.on("connection", (socket) => {
   console.log("Client connected");
 
-  // Spawn a shell process
+  // Check if pty is available
+  if (!pty) {
+    socket.emit("output", "Terminal emulation not available in this environment.\r\n");
+    socket.emit("output", "Command execution features are limited.\r\n");
+    
+    // Still handle events but don't execute
+    socket.on("input", (data) => {
+      // Echo back input for visual feedback
+      socket.emit("output", `[Limited Mode] Command received but not executed: ${data}\r\n`);
+    });
+    
+    socket.on("resize", (size) => {
+      // No-op
+    });
+    
+    socket.on("disconnect", () => {
+      console.log("Client disconnected");
+    });
+    
+    return;
+  }
+
+  // Spawn a shell process (original code)
   const ptyProcess = pty.spawn(shell, [], {
     name: "xterm-color",
     cols: 80,
