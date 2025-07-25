@@ -29,9 +29,14 @@ const app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+// Configure CORS for production
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? [process.env.CLIENT_URL || 'https://your-app.railway.app']
+  : ["http://localhost:3000", "http://localhost:3001"];
+
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://localhost:3001"], // Allow multiple origins
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
@@ -41,7 +46,7 @@ app.use(
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:3001"],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -62,6 +67,16 @@ app.use("/api", listProjectsRouter);
 app.use("/api", fixPageIntegrationRouter);
 app.use("/api", buildValidationRouter);
 app.use(fileSystemRouter);
+
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  const path = require('path');
+  app.use(express.static(path.join(__dirname, '../client/build')));
+  
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+  });
+}
 
 // Store io reference for other routes
 app.set("io", io);

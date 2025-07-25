@@ -1,0 +1,23 @@
+{
+  "name": "no-code-framework",
+  "version": "1.0.0",
+  "description": "AI-powered no-code framework for generating Next.js applications",
+  "scripts": {
+    "install:all": "npm run install:backend && npm run install:client",
+    "install:backend": "cd backend_node && npm install",
+    "install:client": "cd client && npm install",
+    "build": "npm run install:all && npm run build:client",
+    "build:client": "cd client && npm run build",
+    "start": "node backend_node/server.js",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:client\"",
+    "dev:backend": "cd backend_node && npm run dev",
+    "dev:client": "cd client && npm start",
+    "railway-postbuild": "npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "concurrently": "^7.6.0"
+  }
+}
