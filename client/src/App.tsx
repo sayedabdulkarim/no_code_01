@@ -520,6 +520,21 @@ function App() {
   const handleRunProject = async (projectName: string) => {
     try {
       setLoading(true);
+      
+      // Wait for socket connection if not available
+      if (!socketId) {
+        addMessage("Waiting for terminal connection...", false);
+        // Wait up to 3 seconds for socket connection
+        let attempts = 0;
+        while (!socketId && attempts < 30) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          attempts++;
+        }
+        if (!socketId) {
+          addMessage("⚠️ Terminal connection not established, proceeding anyway...", false);
+        }
+      }
+      
       addMessage(`Starting ${projectName}...`, false);
 
       // First, stop all running projects
@@ -575,7 +590,10 @@ function App() {
               isSelected={selectedProject === project.name}
               onClick={() => {
                 setSelectedProject(project.name);
-                handleRunProject(project.name);
+                // Wait a bit for terminal to connect before running project
+                setTimeout(() => {
+                  handleRunProject(project.name);
+                }, 500);
               }}
             >
               {project.name}
@@ -675,17 +693,11 @@ function App() {
         ) : selectedProject ? (
           <DualPanelLayout>
             <Panel>
-              <ProjectInfoPanel>
-                <h2>Project: {selectedProject}</h2>
-                <ProjectActions>
-                  <ActionButton onClick={() => handleRunProject(selectedProject)}>
-                    {loading ? "Starting..." : "Run Project"}
-                  </ActionButton>
-                  <ActionButton onClick={() => setSelectedProject(null)}>
-                    Close
-                  </ActionButton>
-                </ProjectActions>
-              </ProjectInfoPanel>
+              <ChatThread
+                messages={messages}
+                onSendMessage={handleSendMessage}
+                loading={loading}
+              />
             </Panel>
             <TerminalPanel>
               <TabbedPanel
