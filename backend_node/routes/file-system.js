@@ -97,7 +97,7 @@ async function handleFileOperation(req, res, operation) {
 }
 
 // Read a specific file
-router.get(/^\/api\/project-file\/(.+)$/, async (req, res) => {
+router.get("/api/project-file/*", async (req, res) => {
   await handleFileOperation(req, res, async (projectName, filePath, fullPath) => {
     try {
       const content = await fs.readFile(fullPath, "utf-8");
@@ -112,7 +112,7 @@ router.get(/^\/api\/project-file\/(.+)$/, async (req, res) => {
 });
 
 // Save a file
-router.put(/^\/api\/project-file\/(.+)$/, async (req, res) => {
+router.put("/api/project-file/*", async (req, res) => {
   await handleFileOperation(req, res, async (projectName, filePath, fullPath, req) => {
     const { content } = req.body;
     
@@ -130,7 +130,7 @@ router.put(/^\/api\/project-file\/(.+)$/, async (req, res) => {
 });
 
 // Create a new file
-router.post(/^\/api\/project-file\/(.+)$/, async (req, res) => {
+router.post("/api/project-file/*", async (req, res) => {
   await handleFileOperation(req, res, async (projectName, filePath, fullPath, req) => {
     const { content = "" } = req.body;
     
@@ -152,7 +152,7 @@ router.post(/^\/api\/project-file\/(.+)$/, async (req, res) => {
 });
 
 // Delete a file
-router.delete(/^\/api\/project-file\/(.+)$/, async (req, res) => {
+router.delete("/api/project-file/*", async (req, res) => {
   await handleFileOperation(req, res, async (projectName, filePath, fullPath) => {
     try {
       await fs.unlink(fullPath);
