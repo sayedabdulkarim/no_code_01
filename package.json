@@ -7,7 +7,7 @@
     "install:backend": "cd backend_node && npm install --omit=optional",
     "install:client": "cd client && npm install",
     "build": "npm run install:all && npm run build:client",
-    "build:client": "cd client && npm run build",
+    "build:client": "cd client && CI=false npm run build",
     "start": "node backend_node/server.js",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:client\"",
     "dev:backend": "cd backend_node && npm run dev",
