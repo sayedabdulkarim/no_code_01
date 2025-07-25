@@ -26,6 +26,7 @@ class TailwindVersionDetector {
       }
       
       // Check package.json to determine Tailwind version
+      // Default to v3 since v4 is not stable yet
       let tailwindVersion = 3;
       try {
         const packageJsonPath = path.join(projectPath, 'package.json');
@@ -45,7 +46,9 @@ class TailwindVersionDetector {
           // If can't read from node_modules, check package.json dependency
           const tailwindDep = packageJson.dependencies?.tailwindcss || packageJson.devDependencies?.tailwindcss;
           if (tailwindDep) {
-            const versionMatch = tailwindDep.match(/(\d+)\./);
+            // Parse version more carefully
+            // Handle cases like "^3.0.0", "~3.4.0", "3.x", etc.
+            const versionMatch = tailwindDep.match(/[~^]?(\d+)\./);
             if (versionMatch) {
               tailwindVersion = parseInt(versionMatch[1]);
             }
@@ -53,6 +56,15 @@ class TailwindVersionDetector {
         }
       } catch (e) {
         // Default to v3 if can't determine
+        tailwindVersion = 3;
+      }
+      
+      // Force v3 for now since v4 is not stable and our projects use v3
+      if (tailwindVersion >= 4) {
+        if (socket) {
+          socket.emit('output', `  ⚠️ Tailwind v4 detected but using v3 config for stability\n`);
+        }
+        tailwindVersion = 3;
       }
       
       // Generate appropriate PostCSS config based on Tailwind version
