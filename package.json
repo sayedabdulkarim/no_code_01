@@ -4,7 +4,7 @@
   "description": "AI-powered no-code framework for generating Next.js applications",
   "scripts": {
     "install:all": "npm run install:backend && npm run install:client",
-    "install:backend": "cd backend_node && npm install",
+    "install:backend": "cd backend_node && npm install --omit=optional",
     "install:client": "cd client && npm install",
     "build": "npm run install:all && npm run build:client",
     "build:client": "cd client && npm run build",
