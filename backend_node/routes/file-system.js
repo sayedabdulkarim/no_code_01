@@ -60,11 +60,17 @@ router.get("/api/project-files/:projectName", async (req, res) => {
   }
 });
 
-// Helper function to handle file operations
-async function handleFileOperation(req, res, operation) {
+// Use a middleware approach to handle all file operations
+// This avoids complex route patterns that cause issues with path-to-regexp
+router.use("/api/project-file", async (req, res, next) => {
+  // Skip if path doesn't start with /
+  if (!req.path || !req.path.startsWith('/')) {
+    return next();
+  }
+  
   try {
     // Extract project name and file path from URL
-    const urlPath = req.path.replace('/api/project-file/', '');
+    const urlPath = req.path.substring(1); // Remove leading /
     const firstSlashIndex = urlPath.indexOf('/');
     
     if (firstSlashIndex === -1) {
@@ -87,83 +93,70 @@ async function handleFileOperation(req, res, operation) {
       return res.status(403).json({ error: "Access denied" });
     }
     
-    // Execute the operation
-    await operation(projectName, filePath, fullPath, req, res);
+    // Handle different HTTP methods
+    if (req.method === 'GET') {
+      // Read file
+      try {
+        const content = await fs.readFile(fullPath, "utf-8");
+        res.json({ content, path: filePath });
+      } catch (error) {
+        if (error.code === "ENOENT") {
+          return res.status(404).json({ error: "File not found" });
+        }
+        throw error;
+      }
+    } else if (req.method === 'PUT') {
+      // Save file
+      const { content } = req.body;
+      
+      if (content === undefined) {
+        return res.status(400).json({ error: "Content is required" });
+      }
+      
+      // Ensure directory exists
+      const dir = path.dirname(fullPath);
+      await fs.mkdir(dir, { recursive: true });
+      
+      await fs.writeFile(fullPath, content, "utf-8");
+      res.json({ message: "File saved successfully", path: filePath });
+    } else if (req.method === 'POST') {
+      // Create new file
+      const { content = "" } = req.body;
+      
+      // Check if file already exists
+      try {
+        await fs.access(fullPath);
+        return res.status(409).json({ error: "File already exists" });
+      } catch {
+        // File doesn't exist, continue
+      }
+      
+      // Ensure directory exists
+      const dir = path.dirname(fullPath);
+      await fs.mkdir(dir, { recursive: true });
+      
+      await fs.writeFile(fullPath, content, "utf-8");
+      res.json({ message: "File created successfully", path: filePath });
+    } else if (req.method === 'DELETE') {
+      // Delete file
+      try {
+        await fs.unlink(fullPath);
+        res.json({ message: "File deleted successfully", path: filePath });
+      } catch (error) {
+        if (error.code === "ENOENT") {
+          return res.status(404).json({ error: "File not found" });
+        }
+        throw error;
+      }
+    } else {
+      // Method not supported
+      return res.status(405).json({ error: "Method not allowed" });
+    }
     
   } catch (error) {
     console.error("Error in file operation:", error);
     res.status(500).json({ error: "Internal server error" });
   }
-}
-
-// Read a specific file
-router.get("/api/project-file/:path(.*)", async (req, res) => {
-  await handleFileOperation(req, res, async (projectName, filePath, fullPath) => {
-    try {
-      const content = await fs.readFile(fullPath, "utf-8");
-      res.json({ content, path: filePath });
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        return res.status(404).json({ error: "File not found" });
-      }
-      throw error;
-    }
-  });
-});
-
-// Save a file
-router.put("/api/project-file/:path(.*)", async (req, res) => {
-  await handleFileOperation(req, res, async (projectName, filePath, fullPath, req) => {
-    const { content } = req.body;
-    
-    if (content === undefined) {
-      return res.status(400).json({ error: "Content is required" });
-    }
-    
-    // Ensure directory exists
-    const dir = path.dirname(fullPath);
-    await fs.mkdir(dir, { recursive: true });
-    
-    await fs.writeFile(fullPath, content, "utf-8");
-    res.json({ message: "File saved successfully", path: filePath });
-  });
-});
-
-// Create a new file
-router.post("/api/project-file/:path(.*)", async (req, res) => {
-  await handleFileOperation(req, res, async (projectName, filePath, fullPath, req) => {
-    const { content = "" } = req.body;
-    
-    // Check if file already exists
-    try {
-      await fs.access(fullPath);
-      return res.status(409).json({ error: "File already exists" });
-    } catch {
-      // File doesn't exist, continue
-    }
-    
-    // Ensure directory exists
-    const dir = path.dirname(fullPath);
-    await fs.mkdir(dir, { recursive: true });
-    
-    await fs.writeFile(fullPath, content, "utf-8");
-    res.json({ message: "File created successfully", path: filePath });
-  });
-});
-
-// Delete a file
-router.delete("/api/project-file/:path(.*)", async (req, res) => {
-  await handleFileOperation(req, res, async (projectName, filePath, fullPath) => {
-    try {
-      await fs.unlink(fullPath);
-      res.json({ message: "File deleted successfully", path: filePath });
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        return res.status(404).json({ error: "File not found" });
-      }
-      throw error;
-    }
-  });
 });
 
 module.exports = router;
