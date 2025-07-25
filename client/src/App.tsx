@@ -45,8 +45,8 @@ interface Project {
 function App() {
   const [requirement, setRequirement] = useState("");
   const [loading, setLoading] = useState(false);
-  // const [prd, setPRD] = useState<string | null>(null);
-  const [prd, setPRD] = useState<string | null>("true");
+  const [prd, setPRD] = useState<string | null>(null);
+  // const [prd, setPRD] = useState<string | null>("true");
   const [response, setResponse] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -521,21 +521,25 @@ function App() {
     try {
       setLoading(true);
       addMessage(`Starting ${projectName}...`, false);
-      
+
       // First, stop all running projects
       try {
-        const runningProjects = await axios.get('http://localhost:5001/api/running-projects');
+        const runningProjects = await axios.get(
+          "http://localhost:5001/api/running-projects"
+        );
         const projects = runningProjects.data.projects || [];
-        
+
         // Stop all running projects
         for (const project of projects) {
           addMessage(`Stopping ${project.name}...`, false);
-          await axios.post('http://localhost:5001/api/stop-project', { projectName: project.name });
+          await axios.post("http://localhost:5001/api/stop-project", {
+            projectName: project.name,
+          });
         }
       } catch (stopError) {
-        console.error('Error stopping projects:', stopError);
+        console.error("Error stopping projects:", stopError);
       }
-      
+
       // Run the selected project
       const result = await axios.post("http://localhost:5001/api/run-project", {
         projectName,
@@ -653,6 +657,35 @@ function App() {
                 onApprove={() => handleInitializeProject()}
                 onReject={() => handlePRDApproval(false)}
               />
+            </Panel>
+            <TerminalPanel>
+              <TabbedPanel
+                addErrorMessage={addErrorMessage}
+                addMessage={addMessage}
+                addSuggestions={addSuggestions}
+                runCommand={runCommand}
+                onSocketReady={handleSocketReady}
+                socketId={socketId}
+                loading={loading}
+                projectUrl={projectUrl || undefined}
+                projectName={selectedProject || undefined}
+              />
+            </TerminalPanel>
+          </DualPanelLayout>
+        ) : selectedProject ? (
+          <DualPanelLayout>
+            <Panel>
+              <ProjectInfoPanel>
+                <h2>Project: {selectedProject}</h2>
+                <ProjectActions>
+                  <ActionButton onClick={() => handleRunProject(selectedProject)}>
+                    {loading ? "Starting..." : "Run Project"}
+                  </ActionButton>
+                  <ActionButton onClick={() => setSelectedProject(null)}>
+                    Close
+                  </ActionButton>
+                </ProjectActions>
+              </ProjectInfoPanel>
             </Panel>
             <TerminalPanel>
               <TabbedPanel
@@ -851,6 +884,45 @@ const ClearHistoryButton = styled.button`
     background: #5a6268;
   }
 
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const ProjectInfoPanel = styled.div`
+  padding: ${props => props.theme.spacing.lg};
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  
+  h2 {
+    color: ${props => props.theme.colors.primary};
+    margin-bottom: ${props => props.theme.spacing.lg};
+  }
+`;
+
+const ProjectActions = styled.div`
+  display: flex;
+  gap: ${props => props.theme.spacing.md};
+`;
+
+const ActionButton = styled.button`
+  padding: 12px 24px;
+  background: ${props => props.theme.colors.primary};
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+  
+  &:hover:not(:disabled) {
+    opacity: 0.8;
+  }
+  
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
