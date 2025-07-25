@@ -12,6 +12,7 @@ import TabbedPanel from "./components/TabbedPanel";
 import { darkTheme } from "./theme";
 import { Message } from "./types/chat";
 import { CommandSuggestion } from "./types/terminal";
+import { API_URL } from "./config/api";
 
 interface GenerateResponse {
   files: {
@@ -164,7 +165,7 @@ function App() {
     try {
       // Generate PRD first
       const prdResult = await axios.post<PRDResponse>(
-        "http://localhost:5001/generate-prd",
+        `${API_URL}/generate-prd",
         { requirement: message }
       );
 
@@ -205,7 +206,7 @@ function App() {
     setLoading(true);
     try {
       const result = await axios.post<GenerateResponse>(
-        "http://localhost:5001/approve-prd",
+        `${API_URL}/approve-prd",
         { requirement, prd, approved }
       );
 
@@ -268,7 +269,7 @@ function App() {
       addMessage(`Initializing project with socket ID: ${socketId}`, false);
 
       const result = await axios.post(
-        "http://localhost:5001/api/initialize-project",
+        `${API_URL}/api/initialize-project",
         { prd, socketId }
       );
 
@@ -301,7 +302,7 @@ function App() {
       try {
         // Try the new v2 endpoint first
         updateResult = await axios.post(
-          "http://localhost:5001/api/update-project-v2",
+          `${API_URL}/api/update-project-v2",
           {
             projectName,
             requirements: prd,
@@ -343,7 +344,7 @@ function App() {
         // Fallback to original update-project endpoint
         try {
           updateResult = await axios.post(
-            "http://localhost:5001/api/update-project",
+            `${API_URL}/api/update-project",
             {
               projectName,
               requirements: prd,
@@ -422,7 +423,7 @@ function App() {
   // Extract fetchProjects as a reusable function
   const fetchProjects = async () => {
     try {
-      const result = await axios.get("http://localhost:5001/api/list-projects");
+      const result = await axios.get(`${API_URL}/api/list-projects");
       console.log("Fetched projects:", result.data);
       setProjects(result.data.projects || []);
     } catch (err) {
@@ -446,7 +447,7 @@ function App() {
     setLoading(true);
     try {
       const result = await axios.post(
-        "http://localhost:5001/api/update-project",
+        `${API_URL}/api/update-project",
         {
           projectName: selectedProject,
           requirements: updateRequirement,
@@ -540,14 +541,14 @@ function App() {
       // First, stop all running projects
       try {
         const runningProjects = await axios.get(
-          "http://localhost:5001/api/running-projects"
+          `${API_URL}/api/running-projects"
         );
         const projects = runningProjects.data.projects || [];
 
         // Stop all running projects
         for (const project of projects) {
           addMessage(`Stopping ${project.name}...`, false);
-          await axios.post("http://localhost:5001/api/stop-project", {
+          await axios.post(`${API_URL}/api/stop-project", {
             projectName: project.name,
           });
         }
@@ -556,7 +557,7 @@ function App() {
       }
 
       // Run the selected project
-      const result = await axios.post("http://localhost:5001/api/run-project", {
+      const result = await axios.post(`${API_URL}/api/run-project", {
         projectName,
         socketId,
       });
@@ -634,7 +635,7 @@ function App() {
                 onClick={async () => {
                   try {
                     const response = await axios.post(
-                      "http://localhost:5001/api/fix-page-integration",
+                      `${API_URL}/api/fix-page-integration",
                       { projectName: selectedProject }
                     );
                     addMessage(`✅ ${response.data.message}`, false);

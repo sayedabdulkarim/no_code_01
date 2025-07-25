@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import styled from '@emotion/styled';
+import { API_URL } from '../config/api';
 
 const Container = styled.div`
   background: #2a2a2a;
@@ -121,7 +122,7 @@ const RunningProjects: React.FC<RunningProjectsProps> = ({ onProjectStopped }) =
 
   const fetchRunningProjects = async () => {
     try {
-      const response = await axios.get('http://localhost:5001/api/running-projects');
+      const response = await axios.get(`${API_URL}/api/running-projects`);
       setProjects(response.data.projects || []);
     } catch (error) {
       console.error('Error fetching running projects:', error);
@@ -138,7 +139,7 @@ const RunningProjects: React.FC<RunningProjectsProps> = ({ onProjectStopped }) =
   const handleStopProject = async (projectName: string) => {
     setStoppingProject(projectName);
     try {
-      await axios.post('http://localhost:5001/api/stop-project', { projectName });
+      await axios.post(`${API_URL}/api/stop-project`, { projectName });
       await fetchRunningProjects();
       if (onProjectStopped) {
         onProjectStopped();

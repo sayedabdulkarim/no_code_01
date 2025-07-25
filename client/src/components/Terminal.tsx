@@ -8,6 +8,7 @@ import { WebLinksAddon } from "xterm-addon-web-links";
 import styled from "@emotion/styled";
 import "xterm/css/xterm.css";
 import { CommandSuggestion } from "../types/terminal";
+import { API_URL, SOCKET_URL } from "../config/api";
 
 // Style for the terminal container
 const TerminalContainer = styled.div`
@@ -598,7 +599,7 @@ const Terminal: React.FC<TerminalProps> = ({
 
                       // Call our backend API instead of direct command fixer
                       const response = await axios.post(
-                        "http://localhost:5001/api/fix-command",
+                        `${API_URL}/api/fix-command",
                         {
                           command: lastCommandRef.current,
                         }
@@ -649,7 +650,7 @@ const Terminal: React.FC<TerminalProps> = ({
 
                           // Call our backend API with the simplified command
                           const response = await axios.post(
-                            "http://localhost:5001/api/fix-command",
+                            `${API_URL}/api/fix-command",
                             {
                               command: simplifiedCommand,
                             }
@@ -703,7 +704,7 @@ const Terminal: React.FC<TerminalProps> = ({
 
                         // Make one final call to the backend API
                         const response = await axios.post(
-                          "http://localhost:5001/api/fix-command",
+                          `${API_URL}/api/fix-command",
                           {
                             command: lastCommandRef.current,
                           }
@@ -994,7 +995,7 @@ const Terminal: React.FC<TerminalProps> = ({
     // Initialize socket connection with reconnection logic
     try {
       // Set up socket with reconnection options
-      socketRef.current = io("http://localhost:5001", {
+      socketRef.current = io(SOCKET_URL, {
         reconnectionAttempts: 5,
         reconnectionDelay: 2000,
         timeout: 10000,

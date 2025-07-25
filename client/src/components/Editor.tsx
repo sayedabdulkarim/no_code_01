@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from '@emotion/styled';
 import MonacoEditor from '@monaco-editor/react';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 
 interface EditorProps {
   projectName?: string;
@@ -43,7 +44,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
     
     setLoading(true);
     try {
-      const response = await axios.get(`http://localhost:5001/api/project-files/${projectName}`);
+      const response = await axios.get(`${API_URL}/api/project-files/${projectName}`);
       setFileTree(response.data.files);
       // Expand src directory by default
       setExpandedDirs(new Set(['src']));
@@ -77,7 +78,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
 
     try {
       const response = await axios.get(
-        `http://localhost:5001/api/project-file/${projectName}/${filePath}`
+        `${API_URL}/api/project-file/${projectName}/${filePath}`
       );
       
       const newOpenFiles = new Map(openFiles);
@@ -123,7 +124,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
       
       try {
         await axios.put(
-          `http://localhost:5001/api/project-file/${projectName}/${filePath}`,
+          `${API_URL}/api/project-file/${projectName}/${filePath}`,
           { content }
         );
         
