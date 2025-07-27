@@ -1,7 +1,7 @@
 const { spawn } = require('child_process');
 const fs = require('fs/promises');
 const path = require('path');
-const axios = require('axios');
+const Anthropic = require('@anthropic-ai/sdk');
 const QuickFixChecker = require('./quick-fix-checker');
 const CSSConfigValidator = require('./css-config-validator');
 const FontFixer = require('./font-fixer');
@@ -11,6 +11,7 @@ const ContextPatternFixer = require('./context-pattern-fixer');
 class LLMBuildValidator {
   constructor(apiKey) {
     this.apiKey = apiKey;
+    this.anthropic = new Anthropic({ apiKey: this.apiKey });
     this.maxAttempts = 3;
     this.quickFixChecker = new QuickFixChecker();
     this.cssValidator = new CSSConfigValidator();
@@ -326,29 +327,19 @@ IMPORTANT: Return ONLY the JSON object, no markdown formatting or explanations.
 `;
 
     try {
-      const response = await axios.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-          model: "anthropic/claude-3.5-sonnet",
-          messages: [
-            {
-              role: "user",
-              content: prompt
-            }
-          ],
-          max_tokens: 8000,
-          temperature: 0.3 // Lower temperature for more consistent fixes
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`,
-            "Content-Type": "application/json"
-          },
-          timeout: 60000
-        }
-      );
+      const message = await this.anthropic.messages.create({
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 8000,
+        temperature: 0.3, // Lower temperature for more consistent fixes
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ]
+      });
 
-      const content = response.data.choices?.[0]?.message?.content;
+      const content = message.content?.[0]?.text;
       if (!content) {
         throw new Error("Empty response from LLM");
       }

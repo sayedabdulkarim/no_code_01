@@ -53,7 +53,8 @@ export default function RootLayout({
     "eslint": "^8.0.0",
     "eslint-config-next": "^14.0.0",
     "postcss": "^8.0.0",
-    "tailwindcss": "^3.0.0",
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/postcss": "^4.0.0-alpha.33",
     "typescript": "^5.0.0"
   }
 }`,

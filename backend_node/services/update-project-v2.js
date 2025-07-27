@@ -1,7 +1,7 @@
 const express = require("express");
 const fs = require("fs/promises");
 const path = require("path");
-const TaskBasedGenerator = require("./task-based-generator");
+const TaskBasedGeneratorMCP = require("./task-based-generator-mcp");
 const CompilationChecker = require("./compilation-checker");
 const LLMBuildValidator = require("./llm-build-validator");
 require("dotenv").config();
@@ -44,13 +44,13 @@ router.post("/update-project-v2", async (req, res) => {
     console.log(`Read PRD for project ${projectName}, length: ${prd.length}`);
     
     // Check API key
-    if (!process.env.OPENROUTER_API_KEY) {
-      console.error("OPENROUTER_API_KEY not found in environment");
-      return res.status(500).json({ error: "API key not configured" });
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error("ANTHROPIC_API_KEY not found in environment");
+      return res.status(500).json({ error: "Claude API key not configured" });
     }
     
-    // Initialize generator
-    const generator = new TaskBasedGenerator(process.env.OPENROUTER_API_KEY);
+    // Initialize generator with Claude API and MCP support
+    const generator = new TaskBasedGeneratorMCP(process.env.ANTHROPIC_API_KEY);
     
     // Notify start
     if (socket) {
@@ -83,7 +83,7 @@ router.post("/update-project-v2", async (req, res) => {
       status: 'in_progress'
     });
 
-    // Step 2: Execute tasks with progress tracking
+    // Step 2: Execute tasks with progress tracking (now with MCP support)
     const results = await generator.executeTasks(
       tasks, 
       prd, 
@@ -107,7 +107,8 @@ router.post("/update-project-v2", async (req, res) => {
             socket.emit('output', `\x1b[31m✗ Failed: ${progress.taskName} - ${progress.error}\x1b[0m\n`);
           }
         }
-      }
+      },
+      projectName  // Pass project name for MCP context
     );
 
     // Update final progress
@@ -145,7 +146,7 @@ router.post("/update-project-v2", async (req, res) => {
         socket.emit('output', '\n\x1b[1;33m> Compilation errors detected. Using AI to analyze and fix...\x1b[0m\n');
       }
       
-      const llmValidator = new LLMBuildValidator(process.env.OPENROUTER_API_KEY);
+      const llmValidator = new LLMBuildValidator(process.env.ANTHROPIC_API_KEY);
       llmValidationResult = await llmValidator.validateAndFix(projectPath, prd, socket);
     } else {
       llmValidationResult = { success: true };

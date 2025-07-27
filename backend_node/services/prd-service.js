@@ -1,5 +1,5 @@
 // PRD Service for generating Product Requirement Documents
-const { LLMService } = require("./llm-service");
+const { LLMService } = require("./claude-service");
 
 class PRDService {
   constructor() {

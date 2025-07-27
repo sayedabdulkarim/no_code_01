@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "no-code-framework": {
+      "command": "node",
+      "args": ["./mcp/server.js"],
+      "env": {
+        "NODE_ENV": "development"
+      }
+    }
+  }
+}

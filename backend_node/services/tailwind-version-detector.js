@@ -59,12 +59,9 @@ class TailwindVersionDetector {
         tailwindVersion = 3;
       }
       
-      // Force v3 for now since v4 is not stable and our projects use v3
-      if (tailwindVersion >= 4) {
-        if (socket) {
-          socket.emit('output', `  ⚠️ Tailwind v4 detected but using v3 config for stability\n`);
-        }
-        tailwindVersion = 3;
+      // Keep the detected version (no longer forcing v3)
+      if (tailwindVersion >= 4 && socket) {
+        socket.emit('output', `  ℹ Tailwind CSS v${tailwindVersion} detected\n`);
       }
       
       // Generate appropriate PostCSS config based on Tailwind version

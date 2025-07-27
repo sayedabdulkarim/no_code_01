@@ -1,10 +1,11 @@
-const axios = require("axios");
+const Anthropic = require("@anthropic-ai/sdk");
 const fs = require("fs/promises");
 const path = require("path");
 
 class TaskBasedGenerator {
   constructor(apiKey) {
     this.apiKey = apiKey;
+    this.anthropic = new Anthropic({ apiKey: this.apiKey });
     this.maxRetries = 3;
   }
 
@@ -354,6 +355,13 @@ Return ONLY a valid JSON object with this structure:
         // Generate code for this task
         const result = await this.generateTaskCode(task, prd, generatedFiles);
         
+        // Debug: Log the result
+        console.log(`Task ${task.id} result:`, {
+          hasFiles: !!result.files,
+          filesCount: result.files?.length || 0,
+          filesPaths: result.files?.map(f => f.path) || []
+        });
+        
         // Write files to disk
         for (const file of result.files) {
           const filePath = path.join(projectPath, file.path);
@@ -435,29 +443,19 @@ Return ONLY a valid JSON object with this structure:
   async callLLM(prompt, maxTokens = 4000) {
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
-        const response = await axios.post(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            model: "anthropic/claude-3.5-sonnet",
-            messages: [
-              {
-                role: "user",
-                content: prompt
-              }
-            ],
-            max_tokens: maxTokens,
-            temperature: 0.7
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${this.apiKey}`,
-              "Content-Type": "application/json"
-            },
-            timeout: 60000
-          }
-        );
+        const message = await this.anthropic.messages.create({
+          model: "claude-3-5-sonnet-20241022",
+          max_tokens: maxTokens,
+          temperature: 0.7,
+          messages: [
+            {
+              role: "user",
+              content: prompt
+            }
+          ]
+        });
 
-        const content = response.data.choices?.[0]?.message?.content;
+        const content = message.content?.[0]?.text;
         if (!content) {
           throw new Error("Empty response from LLM");
         }
@@ -481,8 +479,18 @@ Return ONLY a valid JSON object with this structure:
    */
   parseJSON(content) {
     try {
+      // Debug: Log raw content length
+      console.log('Raw LLM response length:', content.length);
+      
       // Try direct parsing first
       const parsed = JSON.parse(content);
+      
+      // Debug: Log parsed result
+      console.log('Parsed result:', {
+        hasFiles: !!parsed.files,
+        filesCount: parsed.files?.length || 0,
+        filesPaths: parsed.files?.map(f => f.path) || []
+      });
       
       // Validate and fix files array
       if (parsed.files && Array.isArray(parsed.files)) {

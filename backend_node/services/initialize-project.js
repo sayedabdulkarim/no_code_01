@@ -4,6 +4,7 @@ const fs = require("fs/promises");
 const path = require("path");
 const { randomUUID } = require("crypto");
 const projectManager = require("./project-manager");
+const { LocalProjectValidator } = require("./local-project-validator");
 
 let io;
 const router = express.Router();
@@ -124,6 +125,62 @@ module.exports = (socketIo) => {
         throw new Error(`Command failed with exit code ${exitCode}`);
       }
 
+      // Run local validation and fixes before proceeding
+      if (socket) {
+        socket.emit("output", `\n> Running local project validation...\n`);
+      }
+
+      try {
+        const validator = new LocalProjectValidator();
+        const validationResult = await validator.validateProject(projectPath, socket);
+
+        if (!validationResult.success) {
+          if (socket) {
+            socket.emit("output", `\n> ⚠ Validation found ${validationResult.results.errors.length} issues\n`);
+            socket.emit("output", `> Applied ${validationResult.results.fixes.length} fixes\n`);
+          }
+          console.log('Validation results:', validationResult.results);
+          
+          // If critical errors remain, we can still proceed but warn the user
+          const criticalErrors = validationResult.results.errors.filter(error => 
+            error.includes('Tailwind') || error.includes('package manager')
+          );
+          
+          if (criticalErrors.length > 0) {
+            if (socket) {
+              socket.emit("output", `\n> ⚠ Critical validation issues detected:\n`);
+              criticalErrors.forEach(error => {
+                socket.emit("output", `>   - ${error}\n`);
+              });
+              socket.emit("output", `> Proceeding anyway - manual fixes may be needed\n`);
+            }
+          }
+        } else {
+          if (socket) {
+            socket.emit("output", `\n> ✓ Project validation passed successfully\n`);
+          }
+        }
+      } catch (validationError) {
+        console.error('LocalProjectValidator failed:', validationError);
+        if (socket) {
+          socket.emit("output", `\n> ⚠ Local validation failed: ${validationError.message}\n`);
+          socket.emit("output", `> Falling back to basic setup...\n`);
+        }
+        
+        // Fallback: Try basic Tailwind v3 setup
+        try {
+          await router.basicTailwindSetup(projectPath, socket);
+        } catch (fallbackError) {
+          console.error('Fallback setup also failed:', fallbackError);
+          if (socket) {
+            socket.emit("output", `\n> ⚠ Fallback setup failed. Project may have build issues.\n`);
+            socket.emit("output", `> You may need to manually fix Tailwind CSS configuration.\n`);
+          }
+          // Don't throw here - let the project creation continue
+        }
+      }
+
+
       // Save the PRD as markdown file in the project directory
       const prdPath = path.join(projectPath, "PRD.md");
       await fs.writeFile(prdPath, prd, "utf-8");
@@ -172,6 +229,54 @@ module.exports = (socketIo) => {
       });
     }
   });
+
+  // Fallback method for basic Tailwind v3 setup
+  router.basicTailwindSetup = async function(projectPath, socket) {
+    if (socket) {
+      socket.emit("output", `> Attempting basic Tailwind v3 setup...\n`);
+    }
+
+    // Simple package manager detection
+    let packageManager = 'npm';
+    try {
+      await fs.access(path.join(projectPath, 'yarn.lock'));
+      packageManager = 'yarn';
+    } catch {
+      // Use npm
+    }
+
+    // Install Tailwind v4 with required packages
+    const { spawn } = require("child_process");
+    const installCmd = packageManager === 'yarn' 
+      ? ['add', '--dev', 'tailwindcss@^4.0.0', '@tailwindcss/postcss@^4.0.0-alpha.33', 'postcss@^8.4.33']
+      : ['install', '--save-dev', 'tailwindcss@^4.0.0', '@tailwindcss/postcss@^4.0.0-alpha.33', 'postcss@^8.4.33'];
+
+    await new Promise((resolve, reject) => {
+      const process = spawn(packageManager, installCmd, { cwd: projectPath, shell: true });
+      
+      process.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Package installation failed with code ${code}`));
+        }
+      });
+    });
+
+    // Create PostCSS config for Tailwind v4
+    const postcssConfig = `/** @type {import('postcss-load-config').Config} */
+module.exports = {
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+};
+`;
+    await fs.writeFile(path.join(projectPath, "postcss.config.js"), postcssConfig);
+
+    if (socket) {
+      socket.emit("output", `> ✓ Basic Tailwind v4 setup completed\n`);
+    }
+  };
 
   return router;
 };

@@ -1,5 +1,5 @@
 // Agent Service for UI generation - Now using task-based generator internally
-const { LLMService, LLMServiceError } = require("./llm-service");
+const { LLMService, LLMServiceError, ClaudeServiceProduction } = require("./claude-service-production");
 const TaskBasedGenerator = require('./task-based-generator');
 const ImportExportValidator = require('./import-export-validator');
 const ContextPatternValidator = require('./context-pattern-validator');
@@ -11,9 +11,12 @@ require('dotenv').config();
 
 class AgentService {
   constructor() {
-    this.llmService = new LLMService();
-    // Add task-based generator for improved code generation
-    this.taskGenerator = new TaskBasedGenerator(process.env.OPENROUTER_API_KEY);
+    // Use production Claude service with MCP capabilities
+    this.claudeService = new ClaudeServiceProduction();
+    this.llmService = this.claudeService; // For backward compatibility
+    
+    // Update task generator to use Claude API
+    this.taskGenerator = new TaskBasedGenerator(process.env.ANTHROPIC_API_KEY);
     // Add PRD service for requirement processing
     this.prdService = new PRDService();
   }
