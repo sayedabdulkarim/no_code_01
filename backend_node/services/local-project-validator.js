@@ -186,21 +186,19 @@ class LocalProjectValidator {
       const globalsCssPath = path.join(projectPath, 'src/app/globals.css');
       const globalsCss = await fs.readFile(globalsCssPath, 'utf8');
       
-      const requiredDirectives = [
-        '@tailwind base',
-        '@tailwind components',
-        '@tailwind utilities'
-      ];
+      // Check for Tailwind v3 or v4 syntax
+      const hasTailwindV3 = globalsCss.includes('@tailwind base') || 
+                            globalsCss.includes('@tailwind components') || 
+                            globalsCss.includes('@tailwind utilities');
+      const hasTailwindV4 = globalsCss.includes('@import "tailwindcss"') || 
+                            globalsCss.includes("@import 'tailwindcss'");
       
-      const missingDirectives = requiredDirectives.filter(
-        directive => !globalsCss.includes(directive)
-      );
-      
-      if (missingDirectives.length > 0) {
-        this.validationResults.errors.push(`Missing Tailwind directives in globals.css: ${missingDirectives.join(', ')}`);
+      // If neither v3 nor v4 syntax is found, it's an error
+      if (!hasTailwindV3 && !hasTailwindV4) {
+        this.validationResults.errors.push(`Missing Tailwind configuration in globals.css`);
         this.validationResults.fixes.push({
           type: 'add-tailwind-directives',
-          description: 'Add missing Tailwind directives to globals.css'
+          description: 'Add Tailwind configuration to globals.css'
         });
       }
       
@@ -346,28 +344,12 @@ class LocalProjectValidator {
    * Add Tailwind directives to globals.css
    */
   async addTailwindDirectives(projectPath, socket) {
-    const globalsCssPath = path.join(projectPath, 'src/app/globals.css');
-    const directives = `@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-`;
-    
-    try {
-      const existingContent = await fs.readFile(globalsCssPath, 'utf8');
-      const newContent = directives + existingContent.replace(/@tailwind\s+(base|components|utilities);?\s*/g, '');
-      await fs.writeFile(globalsCssPath, newContent);
-      
-      if (socket) {
-        socket.emit("output", `> ✓ Added Tailwind directives to globals.css\n`);
-      }
-    } catch (error) {
-      // Create the file if it doesn't exist
-      await fs.writeFile(globalsCssPath, directives);
-      if (socket) {
-        socket.emit("output", `> ✓ Created globals.css with Tailwind directives\n`);
-      }
+    // CRITICAL: Skip this fix - globals.css should not be modified
+    // The boilerplate already creates the correct configuration
+    if (socket) {
+      socket.emit("output", `> ⚠ Skipping globals.css modification (preserving boilerplate configuration)\n`);
     }
+    return;
   }
 
   /**

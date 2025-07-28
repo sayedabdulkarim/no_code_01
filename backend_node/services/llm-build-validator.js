@@ -129,6 +129,14 @@ class LLMBuildValidator {
           
           // Apply fixes
           for (const file of fixes.files) {
+            // CRITICAL: Skip globals.css - it should never be modified
+            if (file.path.includes('globals.css')) {
+              if (socket) {
+                socket.emit('output', `  ⚠ Skipping globals.css (preserving boilerplate configuration)\n`);
+              }
+              continue;
+            }
+            
             const filePath = path.join(projectPath, file.path);
             
             // Create directory if needed
@@ -285,11 +293,14 @@ STRICT CONSTRAINTS WHEN FIXING:
 - Maximum component size: 150 lines
 
 TAILWIND-SPECIFIC FIXES:
-- If error: "Can't resolve 'tailwindcss'" - REMOVE any import/require of tailwindcss
-- NEVER add: import 'tailwindcss' or require('tailwindcss') 
-- Tailwind works through PostCSS, not direct imports
-- If a file has @tailwind directives in the wrong place, move them to globals.css
-- The ONLY valid location for @tailwind is in src/app/globals.css
+- If error: "Can't resolve 'tailwindcss'" - REMOVE any import/require of tailwindcss from JS/TS files
+- NEVER add: import 'tailwindcss' or require('tailwindcss') in component files
+- Tailwind works through PostCSS, not direct imports in components
+- CRITICAL: NEVER modify src/app/globals.css - it's already properly configured by the boilerplate
+- The globals.css file already exists with the correct Tailwind configuration
+- DO NOT include globals.css in your fixes
+- If you see CSS-related errors, fix PostCSS config or other files, but NEVER touch globals.css
+- The project uses the boilerplate's Tailwind configuration - preserve it as-is
 
 EXPORT/IMPORT PATTERNS - You MUST follow these rules:
 - React Components: ALWAYS use "export default function ComponentName()" or "export default ComponentName"

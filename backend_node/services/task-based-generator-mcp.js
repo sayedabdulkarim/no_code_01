@@ -50,6 +50,8 @@ Guidelines:
 - EXCLUDE: Do NOT create tasks for offline support, service workers, or PWA features
 - EXCLUDE: Do NOT create tasks specifically for accessibility features (basic accessibility should be built into components)
 - EXCLUDE: Do NOT create separate animation tasks - include basic transitions inline with components using Tailwind classes
+- EXCLUDE: Do NOT create tasks to modify globals.css - it's already configured by the boilerplate
+- EXCLUDE: Never include "src/app/globals.css" in any task's files array
 `;
 
     try {
@@ -62,26 +64,57 @@ Guidelines:
   }
 
   /**
+   * Detect Tailwind version from project
+   */
+  async detectTailwindVersion(projectPath) {
+    try {
+      const packageJsonPath = path.join(projectPath, 'package.json');
+      const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
+      
+      const tailwindVersion = packageJson.devDependencies?.tailwindcss || packageJson.dependencies?.tailwindcss || '';
+      const majorVersion = tailwindVersion.match(/\^?(\d+)\./)?.[1];
+      
+      return {
+        version: parseInt(majorVersion) || 4,
+        syntax: parseInt(majorVersion) >= 4 ? '@import "tailwindcss";' : '@tailwind base;\n@tailwind components;\n@tailwind utilities;'
+      };
+    } catch (error) {
+      // Default to v4
+      return {
+        version: 4,
+        syntax: '@import "tailwindcss";'
+      };
+    }
+  }
+
+  /**
    * Generate code for a specific task with MCP context
    */
-  async generateTaskCode(task, prd, existingFiles = {}, projectName = null) {
+  async generateTaskCode(task, prd, existingFiles = {}, projectName = null, projectPath = null) {
     console.log(`generateTaskCode called: projectName=${projectName}, task=${task.id}`);
+    
+    // Detect Tailwind version if project path is provided
+    let tailwindInfo = { version: 4, syntax: '@import "tailwindcss";' };
+    if (projectPath) {
+      tailwindInfo = await this.detectTailwindVersion(projectPath);
+      console.log(`Detected Tailwind v${tailwindInfo.version}`);
+    }
     
     // Use MCP if project name is provided
     if (projectName) {
       console.log(`Using MCP generation for project: ${projectName}`);
-      return await this.generateTaskCodeWithMCP(task, prd, existingFiles, projectName);
+      return await this.generateTaskCodeWithMCP(task, prd, existingFiles, projectName, tailwindInfo);
     }
     
     // Fall back to standard generation if no project name
     console.log(`Using standard generation (no project name)`);
-    return await this.generateTaskCodeStandard(task, prd, existingFiles);
+    return await this.generateTaskCodeStandard(task, prd, existingFiles, tailwindInfo);
   }
 
   /**
    * Generate code using MCP tools to read existing project files
    */
-  async generateTaskCodeWithMCP(task, prd, existingFiles, projectName) {
+  async generateTaskCodeWithMCP(task, prd, existingFiles, projectName, tailwindInfo) {
     console.log(`Generating code for task "${task.name}" with MCP context`);
     
     try {
@@ -113,8 +146,14 @@ TECHNOLOGY CONSTRAINTS:
 - Next.js 14 with App Router
 - TypeScript
 - React hooks only (no external state management)
-- Tailwind CSS only (no CSS-in-JS)
+- Tailwind CSS v${tailwindInfo.version} (use className with utility classes)
 - Native fetch (no axios)
+
+CRITICAL: This project uses Tailwind CSS v${tailwindInfo.version}. 
+- The globals.css file ALREADY EXISTS with proper Tailwind configuration
+- DO NOT generate or modify src/app/globals.css - it already has: ${tailwindInfo.syntax}
+- NEVER include globals.css in your file output
+- Focus only on component and page files
 `;
 
       // Use Claude with MCP to generate code
@@ -144,7 +183,7 @@ TECHNOLOGY CONSTRAINTS:
   /**
    * Standard code generation without MCP
    */
-  async generateTaskCodeStandard(task, prd, existingFiles) {
+  async generateTaskCodeStandard(task, prd, existingFiles, tailwindInfo) {
     const existingFilesList = Object.keys(existingFiles).join(", ");
     
     const prompt = `
@@ -176,6 +215,12 @@ TECHNOLOGY CONSTRAINTS:
 - React hooks only
 - Tailwind CSS only
 - Native fetch only
+
+CRITICAL RULES:
+- DO NOT generate or modify src/app/globals.css - it already exists with proper Tailwind configuration
+- NEVER include globals.css in your JSON output
+- Only generate the component and page files specified in the task
+- The project already has Tailwind CSS v${tailwindInfo.version} properly configured
 `;
 
     try {
@@ -269,7 +314,7 @@ TECHNOLOGY CONSTRAINTS:
         }
         
         // Generate code for the task
-        const result = await this.generateTaskCode(task, prd, generatedFiles, projectName);
+        const result = await this.generateTaskCode(task, prd, generatedFiles, projectName, projectPath);
         
         // Debug result
         console.log(`Task ${task.id} generation result:`, {

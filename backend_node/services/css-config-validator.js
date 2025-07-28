@@ -147,43 +147,45 @@ module.exports = {
     try {
       const content = await fs.readFile(cssPath, 'utf-8');
       
-      // Check for Tailwind directives
-      const hasBase = content.includes('@tailwind base');
-      const hasComponents = content.includes('@tailwind components');
-      const hasUtilities = content.includes('@tailwind utilities');
+      // Check for Tailwind directives (v3 or v4)
+      const hasTailwindV3 = content.includes('@tailwind base') || 
+                            content.includes('@tailwind components') || 
+                            content.includes('@tailwind utilities');
+      const hasTailwindV4 = content.includes('@import "tailwindcss"') || 
+                            content.includes("@import 'tailwindcss'");
       
-      if (!hasBase || !hasComponents || !hasUtilities) {
+      // If file exists and has ANY Tailwind syntax (v3 or v4), don't modify it
+      if (hasTailwindV3 || hasTailwindV4) {
         if (socket) {
-          socket.emit('output', '  ✓ Adding Tailwind directives to globals.css...\n');
+          socket.emit('output', '  ✓ globals.css already has Tailwind configuration\n');
         }
-        
-        // Prepend Tailwind directives
-        const directives = `@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-`;
-        
-        const updatedContent = directives + content.replace(/@tailwind\s+(base|components|utilities);?\s*/g, '');
-        await fs.writeFile(cssPath, updatedContent, 'utf-8');
-        return true;
-      }
-    } catch (err) {
-      // Create file if missing
-      if (socket) {
-        socket.emit('output', '  ✓ Creating globals.css with Tailwind directives...\n');
+        return false; // No changes needed
       }
       
-      const defaultCSS = `@tailwind base;
-@tailwind components;
-@tailwind utilities;
+      // Only create/modify if completely missing Tailwind
+      if (socket) {
+        socket.emit('output', '  ✓ Adding Tailwind to globals.css...\n');
+      }
+      
+      // For new files, use v4 syntax by default
+      const defaultCSS = `@import "tailwindcss";
+`;
+      
+      await fs.writeFile(cssPath, defaultCSS + content, 'utf-8');
+      return true;
+      
+    } catch (err) {
+      // Create file if missing - use v4 syntax
+      if (socket) {
+        socket.emit('output', '  ✓ Creating globals.css with Tailwind v4...\n');
+      }
+      
+      const defaultCSS = `@import "tailwindcss";
 `;
       
       await fs.writeFile(cssPath, defaultCSS, 'utf-8');
       return true;
     }
-    
-    return false;
   }
   
   /**
