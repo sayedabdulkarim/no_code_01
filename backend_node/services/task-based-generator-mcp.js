@@ -136,10 +136,17 @@ IMPORTANT: You have access to read project files. Before generating code:
 
 Generate code that follows the project's existing patterns and integrates seamlessly.
 
+CRITICAL IMPORT RULES:
+1. ALWAYS include all necessary import statements at the top of each file
+2. Import React hooks when used: import { useState, useEffect } from 'react'
+3. Import components with correct paths: import ComponentName from '../components/ComponentName'
+4. Use relative paths for local imports
+5. DO NOT assume any imports are automatic
+
 For each file, format the output as:
 \`\`\`typescript
 // File: [filepath]
-[code content]
+[code content with all imports]
 \`\`\`
 
 TECHNOLOGY CONSTRAINTS:
@@ -201,11 +208,17 @@ ${existingFilesList || "None yet"}
 
 Generate ONLY the code for the files specified in this task.
 
+CRITICAL: Each file MUST include ALL necessary imports at the top:
+- Import React/Next.js features: import { useState } from 'react'
+- Import components: import Header from '../components/Header'
+- Import types: import { UserType } from '../types/user'
+- Use correct relative paths based on file locations
+
 Return ONLY a valid JSON object with this structure:
 {
   "files": {
-    "src/app/layout.tsx": "// Complete code here",
-    "src/components/Header.tsx": "// Complete code here"
+    "src/app/layout.tsx": "// Complete code with imports here",
+    "src/components/Header.tsx": "// Complete code with imports here"
   }
 }
 
@@ -286,6 +299,141 @@ CRITICAL RULES:
   }
 
   /**
+   * Analyze file content and add missing imports
+   */
+  addMissingImports(fileContent, filePath, allGeneratedFiles) {
+    // Skip if not a TypeScript/JavaScript file
+    if (!filePath.match(/\.(tsx?|jsx?)$/)) {
+      return fileContent;
+    }
+
+    // Extract component/function usages in JSX
+    const componentUsageRegex = /<([A-Z][a-zA-Z0-9]*)\s*[^>]*>/g;
+    const usedComponents = new Set();
+    let match;
+    
+    while ((match = componentUsageRegex.exec(fileContent)) !== null) {
+      const componentName = match[1];
+      // Skip HTML elements
+      if (!componentName.match(/^(div|span|main|section|header|footer|nav|aside|article|h[1-6]|p|a|button|input|form|ul|li|ol|img|svg|path)$/)) {
+        usedComponents.add(componentName);
+      }
+    }
+
+    // Check for React hooks usage
+    const hookUsageRegex = /\b(use[A-Z][a-zA-Z0-9]*)\(/g;
+    const usedHooks = new Set();
+    
+    while ((match = hookUsageRegex.exec(fileContent)) !== null) {
+      const hookName = match[1];
+      // Standard React hooks
+      if (['useState', 'useEffect', 'useContext', 'useReducer', 'useCallback', 'useMemo', 'useRef'].includes(hookName)) {
+        usedHooks.add(hookName);
+      }
+    }
+
+    // Extract existing imports to avoid duplicates
+    const existingImports = new Set();
+    const importRegex = /import\s+(?:{[^}]+}|[^;]+)\s+from\s+['"]([^'"]+)['"]/g;
+    
+    while ((match = importRegex.exec(fileContent)) !== null) {
+      const importContent = match[0];
+      // Extract imported names
+      const namedImportMatch = importContent.match(/import\s+{([^}]+)}/);
+      const defaultImportMatch = importContent.match(/import\s+([A-Z][a-zA-Z0-9]*)\s+from/);
+      
+      if (namedImportMatch) {
+        namedImportMatch[1].split(',').forEach(name => {
+          existingImports.add(name.trim());
+        });
+      }
+      if (defaultImportMatch) {
+        existingImports.add(defaultImportMatch[1]);
+      }
+    }
+
+    // Build import statements
+    const imports = [];
+    
+    // Add React import if using hooks
+    if (usedHooks.size > 0 && !fileContent.includes("import React") && !fileContent.includes("'react'")) {
+      const hooksArray = Array.from(usedHooks).filter(hook => !existingImports.has(hook));
+      if (hooksArray.length > 0) {
+        imports.push(`import { ${hooksArray.join(', ')} } from 'react';`);
+      }
+    }
+
+    // Add component imports
+    for (const component of usedComponents) {
+      if (!existingImports.has(component)) {
+        // Search for the component in generated files
+        const componentPath = this.findComponentPath(component, filePath, allGeneratedFiles);
+        if (componentPath) {
+          imports.push(`import ${component} from '${componentPath}';`);
+        }
+      }
+    }
+
+    // Add imports at the beginning of the file
+    if (imports.length > 0) {
+      // If file already has imports, add after them
+      const firstImportIndex = fileContent.search(/^import\s/m);
+      if (firstImportIndex >= 0) {
+        // Find the last import
+        const lines = fileContent.split('\n');
+        let lastImportIndex = 0;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].trim().startsWith('import ')) {
+            lastImportIndex = i;
+          }
+        }
+        lines.splice(lastImportIndex + 1, 0, ...imports);
+        return lines.join('\n');
+      } else {
+        // Add at the very beginning
+        return imports.join('\n') + '\n\n' + fileContent;
+      }
+    }
+
+    return fileContent;
+  }
+
+  /**
+   * Find the relative path to a component
+   */
+  findComponentPath(componentName, fromPath, allGeneratedFiles) {
+    // Common locations to search
+    const searchPaths = [
+      `src/components/${componentName}.tsx`,
+      `src/components/${componentName}.jsx`,
+      `src/components/${componentName}/index.tsx`,
+      `src/components/${componentName}/index.jsx`,
+      `components/${componentName}.tsx`,
+      `components/${componentName}.jsx`,
+    ];
+
+    for (const searchPath of searchPaths) {
+      if (allGeneratedFiles[searchPath]) {
+        // Calculate relative path
+        const from = path.dirname(fromPath);
+        let relativePath = path.relative(from, searchPath).replace(/\\/g, '/');
+        
+        // Remove file extension
+        relativePath = relativePath.replace(/\.(tsx?|jsx?)$/, '');
+        
+        // Add ./ if needed
+        if (!relativePath.startsWith('.') && !relativePath.startsWith('/')) {
+          relativePath = './' + relativePath;
+        }
+        
+        return relativePath;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Execute tasks sequentially with progress tracking
    */
   async executeTasks(tasks, prd, projectPath, onProgress, projectName = null) {
@@ -334,11 +482,14 @@ CRITICAL RULES:
           // Ensure directory exists
           await fs.mkdir(path.dirname(fullPath), { recursive: true });
           
+          // Add missing imports before writing
+          const contentWithImports = this.addMissingImports(content, filePath, generatedFiles);
+          
           // Write file
-          await fs.writeFile(fullPath, content, 'utf8');
+          await fs.writeFile(fullPath, contentWithImports, 'utf8');
           
           // Track generated files
-          generatedFiles[filePath] = content;
+          generatedFiles[filePath] = contentWithImports;
           filesWritten++;
           
           console.log(`Created/Updated: ${filePath}`);
