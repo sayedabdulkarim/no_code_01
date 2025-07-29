@@ -469,27 +469,49 @@ function App() {
       return;
     }
 
+    // Ensure socket connection
+    if (!socketId) {
+      addMessage("Waiting for terminal connection...", false);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
     setLoading(true);
     try {
+      // Use v2 endpoint with MCP support
       const result = await axios.post(
-        "http://localhost:5001/api/update-project",
+        "http://localhost:5001/api/update-project-v2",
         {
           projectName: selectedProject,
           requirements: updateRequirement,
+          socketId, // Pass socketId for real-time updates
         }
       );
 
       if (result.data && result.data.message) {
-        addMessage(`Project updated: ${result.data.message}`, false);
+        addMessage(`✅ ${result.data.message}`, false);
+
+        // Show task summary if available
+        if (result.data.summary) {
+          const summary = result.data.summary;
+          addMessage(
+            `📊 Summary: ${summary.successful}/${summary.total} tasks completed successfully`,
+            false
+          );
+          if (summary.failed > 0) {
+            addMessage(
+              `⚠️ ${summary.failed} tasks failed - check terminal for details`,
+              false
+            );
+          }
+          addMessage(`📁 Modified ${summary.generatedFiles} files`, false);
+        }
 
         // Add success message
         setMessages((prev) => [
           ...prev,
           {
             type: "agent",
-            content: `Project ${selectedProject} updated successfully! ${
-              result.data.explanation || ""
-            }`,
+            content: `Project ${selectedProject} updated successfully!`,
             category: "success",
           },
         ]);

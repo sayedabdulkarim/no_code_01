@@ -30,6 +30,7 @@ router.post("/update-project-v2", async (req, res) => {
 
   try {
     console.log(`Starting update-project-v2 for project: ${projectName}`);
+    console.log(`Update requirements: "${requirements}"`);
     
     // Check if PRD file exists
     try {
@@ -42,6 +43,7 @@ router.post("/update-project-v2", async (req, res) => {
     // Read the PRD
     const prd = await fs.readFile(prdPath, "utf-8");
     console.log(`Read PRD for project ${projectName}, length: ${prd.length}`);
+    console.log(`PRD preview: ${prd.substring(0, 200)}...`);
     
     // Check API key
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -59,12 +61,48 @@ router.post("/update-project-v2", async (req, res) => {
       console.log("No socket connection available for real-time updates");
     }
 
+    // Check if this is an update by looking at existing files and requirements
+    let isUpdate = false;
+    try {
+      // Check if src directory exists with actual component files
+      const srcPath = path.join(projectPath, 'src');
+      const srcExists = await fs.access(srcPath).then(() => true).catch(() => false);
+      
+      if (srcExists) {
+        const srcFiles = await fs.readdir(srcPath, { recursive: true });
+        const hasComponentFiles = srcFiles.some(file => 
+          typeof file === 'string' && (file.endsWith('.tsx') || file.endsWith('.jsx')) && 
+          !file.includes('globals.css')
+        );
+        
+        // It's an update if we have existing component files AND requirements differ from PRD
+        isUpdate = hasComponentFiles && requirements.trim() !== prd.trim();
+        
+        console.log(`Update detection: srcExists=${srcExists}, hasComponentFiles=${hasComponentFiles}, reqDifferentFromPRD=${requirements.trim() !== prd.trim()}, isUpdate=${isUpdate}`);
+      }
+    } catch (e) {
+      console.log("Error checking project state:", e);
+    }
+    
     // Step 1: Create task list
     if (socket) {
       socket.emit('output', '\x1b[36m> Analyzing PRD and creating task list...\x1b[0m\n');
+      if (isUpdate) {
+        socket.emit('output', '\x1b[33m> Detected UPDATE operation - will only modify necessary files\x1b[0m\n');
+      }
     }
     
-    const taskResult = await generator.createTaskList(prd);
+    let taskResult;
+    if (isUpdate) {
+      // Use update-aware task creation that uses MCP to check existing files
+      if (socket) {
+        socket.emit('output', '\x1b[36m> Analyzing request intent...\x1b[0m\n');
+      }
+      taskResult = await generator.createUpdateTaskList(prd, requirements, projectName);
+    } else {
+      // Initial creation - use standard full task list
+      taskResult = await generator.createTaskList(prd);
+    }
     const tasks = taskResult.tasks;
     
     if (socket) {

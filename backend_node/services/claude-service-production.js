@@ -249,6 +249,12 @@ Please analyze the existing code and generate new code that integrates seamlessl
         }
       } while (toolCallsHandled);
 
+      console.log(`📄 [Claude Service] Final response length: ${finalResponse.length}`);
+      // Log first 500 chars for debugging
+      if (finalResponse.length > 0) {
+        console.log(`📄 [Claude Service] Response preview: ${finalResponse.substring(0, 500)}...`);
+      }
+
       return finalResponse;
       
     } catch (error) {
@@ -421,7 +427,9 @@ Return ONLY a valid JSON object with this structure:
                   
                 case 'list_project_files':
                   try {
-                    resultContent = await mcp.listProjectFiles(projectName, content.input.directory);
+                    const files = await mcp.listProjectFiles(projectName, content.input.directory);
+                    // Convert to string for Claude API
+                    resultContent = JSON.stringify(files, null, 2);
                     console.log(`✅ [Claude Error Fixer] Listed files in: ${content.input.directory}`);
                   } catch (error) {
                     resultContent = `Error listing files: ${error.message}`;

@@ -11,6 +11,170 @@ class TaskBasedGeneratorMCP {
   }
 
   /**
+   * Classify user intent for better update handling
+   */
+  async classifyUpdateIntent(requirements) {
+    const prompt = `
+Analyze this user request and classify the PRIMARY intent:
+
+User request: "${requirements}"
+
+Classification categories:
+1. CONTENT - Changes to text, labels, descriptions, titles, messages, copy
+2. STYLE - Changes to colors, sizes, spacing, fonts, visual appearance
+3. LAYOUT - Changes to positioning, arrangement, structure, component order
+4. FEATURE - New functionality, interactions, components, behaviors, capabilities
+5. FIX - Bug fixes, error corrections, broken functionality
+
+Consider:
+- What is the user literally asking for?
+- What's the simplest, most direct interpretation?
+- Don't infer unstated requirements
+- If unclear, choose the simplest category
+
+Examples:
+- "add a description below the title" → CONTENT (adding text)
+- "make the button blue" → STYLE (changing color)
+- "add a dark mode toggle" → FEATURE (new functionality)
+- "move the header to the bottom" → LAYOUT (repositioning)
+
+Return ONLY a valid JSON object:
+{
+  "intent": "CONTENT|STYLE|LAYOUT|FEATURE|FIX",
+  "confidence": 0.0-1.0,
+  "reasoning": "brief explanation"
+}
+`;
+
+    try {
+      const response = await this.claudeService.generateText(prompt);
+      const classification = this.parseJSON(response);
+      console.log(`📊 [Task Generator] Intent classification:`, classification);
+      return classification;
+    } catch (error) {
+      console.error("Error classifying intent:", error);
+      // Default to FEATURE for safety
+      return { intent: "FEATURE", confidence: 0.5, reasoning: "Classification failed, defaulting to feature" };
+    }
+  }
+
+  /**
+   * Create update task list for existing projects (with MCP awareness)
+   */
+  async createUpdateTaskList(prd, newRequirements, projectName) {
+    console.log(`Creating update task list for project: ${projectName}`);
+    
+    // First, classify the intent
+    const classification = await this.classifyUpdateIntent(newRequirements);
+    console.log(`🎯 [Task Generator] Update classified as: ${classification.intent} (confidence: ${classification.confidence})`);
+    
+    // Store classification for later use
+    this.currentUpdateIntent = classification.intent;
+    
+    // Adjust prompt based on intent
+    let taskGenerationApproach = '';
+    if (classification.intent === 'CONTENT' || classification.intent === 'STYLE') {
+      taskGenerationApproach = `
+IMPORTANT: This is a ${classification.intent} change request. The user wants to make a simple, literal change.
+- Make MINIMAL modifications only
+- Do NOT add new features or components
+- Do NOT restructure existing code
+- Simply update the specific ${classification.intent.toLowerCase()} as requested
+- If the request is "add description below title", literally add a text paragraph, don't add features
+
+For CONTENT changes specifically:
+- Add or modify ONLY text content
+- Use simple HTML elements like <p>, <span>, <div> for new text
+- Don't create new components for simple text additions
+- Place new content exactly where requested (below, above, after, before)
+- Keep styling minimal and consistent with existing styles`;
+    } else if (classification.intent === 'LAYOUT') {
+      taskGenerationApproach = `
+IMPORTANT: This is a LAYOUT change request. The user wants to rearrange existing elements.
+- Focus on repositioning or restructuring existing components
+- Do NOT add new features
+- Preserve all existing functionality`;
+    } else {
+      taskGenerationApproach = `
+This is a ${classification.intent} request. Analyze what needs to be implemented or fixed.`;
+    }
+    
+    const prompt = `
+You are an expert Next.js developer working on an EXISTING project "${projectName}".
+
+User Request Classification: ${classification.intent}
+Reasoning: ${classification.reasoning}
+
+You have access to read the current project files using your tools. Please:
+1. First, check the project structure to understand what already exists
+2. Read key files like src/app/page.tsx to understand current implementation
+3. Interpret the requirements based on the classification above
+4. Create tasks accordingly
+
+${taskGenerationApproach}
+
+Original PRD:
+${prd}
+
+New Requirements:
+${newRequirements}
+
+Create a task list that:
+- Respects the intent classification (${classification.intent})
+- Only includes necessary changes
+- For CONTENT/STYLE changes: Make minimal, literal modifications
+- For FEATURE changes: Implement new functionality properly
+- Preserves all existing code that doesn't need changes
+
+Return ONLY a valid JSON object with this structure:
+{
+  "tasks": [
+    {
+      "id": "update-1",
+      "name": "Update specific component for new feature",
+      "description": "Add new functionality to existing component",
+      "dependencies": [],
+      "files": ["src/app/page.tsx"],
+      "priority": 1,
+      "updateType": "modify",
+      "intent": "${classification.intent}"
+    }
+  ]
+}
+
+IMPORTANT: This is an UPDATE operation. Respect the user's intent as classified.
+`;
+
+    try {
+      // Use Claude with MCP to analyze project and create update tasks
+      const response = await this.claudeService.generateCodeForProject(prompt, projectName);
+      console.log(`📝 [Task Generator] Raw update task response length: ${response.length}`);
+      
+      const parsed = this.parseJSON(response);
+      console.log(`📋 [Task Generator] Parsed update tasks:`, {
+        hasTasks: !!parsed.tasks,
+        taskCount: parsed.tasks ? parsed.tasks.length : 0,
+        tasks: parsed.tasks ? parsed.tasks.map(t => ({ id: t.id, name: t.name })) : []
+      });
+      
+      // Ensure all tasks have the intent
+      if (parsed.tasks && this.currentUpdateIntent) {
+        parsed.tasks = parsed.tasks.map(task => ({
+          ...task,
+          intent: task.intent || this.currentUpdateIntent
+        }));
+      }
+      
+      return parsed;
+    } catch (error) {
+      console.error("Error creating update task list:", error);
+      // Fallback to standard task list if MCP fails
+      console.log("Falling back to standard task creation");
+      return this.createTaskList(newRequirements);
+    }
+  }
+
+  /**
    * Analyze PRD and create a task list
    */
   async createTaskList(prd) {
@@ -136,8 +300,22 @@ IMPORTANT: You have access to read project files. Before generating code:
 1. Check the project structure if needed
 2. Read any relevant existing files to understand the current implementation
 3. Ensure your code integrates perfectly with existing patterns
+4. For UPDATE tasks: Read the current file content first and modify only what's necessary
+5. Preserve all existing functionality that doesn't need changes
 
 Generate code that follows the project's existing patterns and integrates seamlessly.
+
+${task.updateType === 'modify' ? 'CRITICAL: This is an UPDATE task. Read the existing file first and make minimal necessary changes.' : ''}
+
+${task.intent === 'CONTENT' ? `
+CRITICAL: This is a CONTENT modification task. 
+- Read the existing file
+- Add or modify ONLY the text content as requested
+- Do NOT restructure components
+- Do NOT add new features
+- Use simple elements like <p className="text-gray-600 mt-2">Your text here</p>
+- Preserve ALL existing code except for the specific content change
+` : ''}
 
 CRITICAL IMPORT RULES:
 1. ALWAYS include all necessary import statements at the top of each file
@@ -488,6 +666,19 @@ CRITICAL RULES:
           // Add missing imports before writing
           const contentWithImports = this.addMissingImports(content, filePath, generatedFiles);
           
+          // Safety check: Don't overwrite critical config files during updates
+          const criticalFiles = ['globals.css', 'tailwind.config.js', 'postcss.config.js', 'next.config.js'];
+          const fileName = path.basename(filePath);
+          
+          if (criticalFiles.includes(fileName)) {
+            // Check if file already exists
+            const fileExists = await fs.access(fullPath).then(() => true).catch(() => false);
+            if (fileExists) {
+              console.log(`Skipping critical file ${filePath} - already exists`);
+              continue;
+            }
+          }
+          
           // Write file
           await fs.writeFile(fullPath, contentWithImports, 'utf8');
           
@@ -593,10 +784,16 @@ CRITICAL RULES:
    * Parse JSON from LLM response
    */
   parseJSON(response) {
+    console.log(`🔍 [Task Generator] Attempting to parse JSON from response of length: ${response.length}`);
+    
     try {
       // First try direct parsing
-      return JSON.parse(response);
+      const parsed = JSON.parse(response);
+      console.log(`✅ [Task Generator] Direct JSON parse successful`);
+      return parsed;
     } catch (error) {
+      console.log(`⚠️ [Task Generator] Direct JSON parse failed, trying to extract JSON...`);
+      
       // Try to extract JSON from the response
       const jsonMatch = response.match(/```json\s*([\s\S]*?)```/) || 
                        response.match(/\{[\s\S]*\}/);
@@ -604,14 +801,18 @@ CRITICAL RULES:
       if (jsonMatch) {
         try {
           const jsonStr = jsonMatch[1] || jsonMatch[0];
-          return JSON.parse(jsonStr);
+          console.log(`📝 [Task Generator] Found JSON block, length: ${jsonStr.length}`);
+          const parsed = JSON.parse(jsonStr);
+          console.log(`✅ [Task Generator] Extracted JSON parse successful`);
+          return parsed;
         } catch (parseError) {
           console.error("Failed to parse extracted JSON:", parseError);
-          console.error("Response was:", response);
+          console.error("Response preview (first 1000 chars):", response.substring(0, 1000));
           throw new Error("Invalid JSON response from LLM");
         }
       }
       
+      console.error("No JSON found in response. Full response:", response);
       throw new Error("No valid JSON found in response");
     }
   }
