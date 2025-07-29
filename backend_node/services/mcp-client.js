@@ -14,6 +14,9 @@ class MCPClient {
     return new Promise((resolve, reject) => {
       const mcpServerPath = path.join(__dirname, '../mcp/server-simple.js');
       
+      console.log('\n🚀 [MCP] Starting MCP server...');
+      console.log(`📁 [MCP] Server path: ${mcpServerPath}`);
+      
       // Spawn the MCP server process
       this.mcpProcess = spawn('node', [mcpServerPath], {
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -25,20 +28,22 @@ class MCPClient {
       });
 
       this.mcpProcess.stderr.on('data', (data) => {
-        if (data.toString().includes('MCP Server started successfully')) {
+        const message = data.toString();
+        if (message.includes('MCP Server started successfully')) {
+          console.log('✅ [MCP] Server started successfully!');
           resolve();
         } else {
-          console.error('MCP Server error:', data.toString());
+          console.error('❌ [MCP] Server error:', message);
         }
       });
 
       this.mcpProcess.on('error', (error) => {
-        console.error('Failed to start MCP server:', error);
+        console.error('❌ [MCP] Failed to start server:', error);
         reject(error);
       });
 
       this.mcpProcess.on('close', (code) => {
-        console.log(`MCP server exited with code ${code}`);
+        console.log(`🔚 [MCP] Server exited with code ${code}`);
       });
     });
   }
@@ -55,6 +60,10 @@ class MCPClient {
   async callTool(toolName, args) {
     return new Promise((resolve, reject) => {
       const requestId = ++this.requestId;
+      
+      console.log(`\n🔧 [MCP] Calling tool: ${toolName}`);
+      console.log(`📤 [MCP] Request ID: ${requestId}`);
+      console.log(`📦 [MCP] Arguments:`, JSON.stringify(args, null, 2));
       
       // Store the handler for this request
       this.handlers.set(requestId, { resolve, reject });
@@ -76,6 +85,7 @@ class MCPClient {
       setTimeout(() => {
         if (this.handlers.has(requestId)) {
           this.handlers.delete(requestId);
+          console.error(`⏱️ [MCP] Tool call timeout: ${toolName} (ID: ${requestId})`);
           reject(new Error(`MCP tool call timeout: ${toolName}`));
         }
       }, 30000); // 30 second timeout
@@ -94,15 +104,21 @@ class MCPClient {
             this.handlers.delete(response.id);
             
             if (response.error) {
+              console.error(`❌ [MCP] Tool error (ID: ${response.id}):`, response.error.message);
               handler.reject(new Error(response.error.message));
             } else {
+              console.log(`✅ [MCP] Tool response received (ID: ${response.id})`);
+              // Log first 200 chars of response for debugging
+              const preview = JSON.stringify(response.result).substring(0, 200);
+              console.log(`📥 [MCP] Response preview: ${preview}${JSON.stringify(response.result).length > 200 ? '...' : ''}`);
               handler.resolve(response.result);
             }
           }
         }
       }
     } catch (error) {
-      console.error('Error parsing MCP response:', error);
+      console.error('❌ [MCP] Error parsing response:', error);
+      console.error('📄 [MCP] Raw data:', data);
     }
   }
 
@@ -144,8 +160,12 @@ let mcpClient = null;
 // Get or create MCP client instance
 async function getMCPClient() {
   if (!mcpClient) {
+    console.log('\n🔄 [MCP] Creating new MCP client instance...');
     mcpClient = new MCPClient();
     await mcpClient.start();
+    console.log('✅ [MCP] MCP client ready for use!');
+  } else {
+    console.log('♻️ [MCP] Reusing existing MCP client instance');
   }
   return mcpClient;
 }

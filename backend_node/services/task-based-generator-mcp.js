@@ -102,12 +102,15 @@ Guidelines:
     
     // Use MCP if project name is provided
     if (projectName) {
-      console.log(`Using MCP generation for project: ${projectName}`);
+      console.log(`\n🤖 [Task Generator] Using MCP-enhanced generation`);
+      console.log(`📁 [Task Generator] Project: ${projectName}`);
+      console.log(`📝 [Task Generator] Task: ${task.name}`);
       return await this.generateTaskCodeWithMCP(task, prd, existingFiles, projectName, tailwindInfo);
     }
     
     // Fall back to standard generation if no project name
-    console.log(`Using standard generation (no project name)`);
+    console.log(`\n⚡ [Task Generator] Using standard generation (no MCP)`);
+    console.log(`📝 [Task Generator] Task: ${task.name}`);
     return await this.generateTaskCodeStandard(task, prd, existingFiles, tailwindInfo);
   }
 
@@ -115,7 +118,7 @@ Guidelines:
    * Generate code using MCP tools to read existing project files
    */
   async generateTaskCodeWithMCP(task, prd, existingFiles, projectName, tailwindInfo) {
-    console.log(`Generating code for task "${task.name}" with MCP context`);
+    console.log(`🎯 [Task Generator] Starting MCP code generation for: "${task.name}"`);
     
     try {
       // Build a prompt that encourages using MCP tools

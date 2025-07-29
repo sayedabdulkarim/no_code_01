@@ -31,7 +31,9 @@ class ClaudeServiceProduction {
   // Initialize MCP client if not already done
   async ensureMCPClient() {
     if (!this.mcpClient) {
+      console.log('\n🔌 [Claude Service] Initializing MCP client...');
       this.mcpClient = await getMCPClient();
+      console.log('✅ [Claude Service] MCP client initialized');
     }
     return this.mcpClient;
   }
@@ -39,13 +41,22 @@ class ClaudeServiceProduction {
   // Generate code with MCP context for project updates
   async generateCodeForProject(requirements, projectName) {
     try {
+      console.log('\n🎯 [Claude Service] Starting MCP-enhanced code generation');
+      console.log(`📁 [Claude Service] Project: ${projectName}`);
+      
       // Ensure MCP client is ready
       const mcp = await this.ensureMCPClient();
       
-      console.log(`Generating code for project: ${projectName} with MCP tools`);
+      console.log('🔍 [Claude Service] Analyzing project structure...');
       
       // First, analyze the project structure
       const projectStructure = await mcp.checkProjectStructure(projectName);
+      console.log('📊 [Claude Service] Project analysis complete:', {
+        framework: projectStructure.framework,
+        hasTypeScript: projectStructure.hasTsConfig,
+        hasTailwind: projectStructure.hasTailwind,
+        componentsCount: projectStructure.components.length
+      });
       
       // Build system prompt with project context
       const systemPrompt = `You are an expert ${projectStructure.framework} developer. 
@@ -60,6 +71,13 @@ class ClaudeServiceProduction {
       1. Use read_project_file to understand existing patterns
       2. Use search_code to find related code
       3. Generate code that matches the project's style
+      
+      CRITICAL RULES:
+      - NEVER modify or generate src/app/globals.css - it already has proper Tailwind configuration
+      - ALWAYS include all necessary imports at the top of each file
+      - Import React hooks when used: import { useState, useEffect } from 'react'
+      - Import components with correct paths based on actual file locations
+      - Use the MCP tools to find exact component locations before importing
       
       IMPORTANT: Always read relevant files before generating code to ensure compatibility.`;
 
@@ -106,62 +124,130 @@ Please analyze the existing code and generate new code that integrates seamlessl
         tool_choice: { type: "auto" }
       });
 
-      // Process response and handle tool calls
-      let finalResponse = '';
-      let codeGenerated = {};
+      // Process initial response
+      let allMessages = [
+        {
+          role: "user",
+          content: `Project: ${projectName}
+Requirements: ${requirements}
 
-      for (const content of message.content) {
-        if (content.type === 'text') {
-          finalResponse += content.text;
-        } else if (content.type === 'tool_use') {
-          // Handle tool calls
-          console.log(`Claude requesting tool: ${content.name}`);
-          
-          try {
-            let toolResult;
+Please analyze the existing code and generate new code that integrates seamlessly.`
+        }
+      ];
+      
+      let currentResponse = message;
+      let finalResponse = '';
+      let toolCallsHandled = false;
+
+      // Handle tool calls in a loop until no more tool calls
+      do {
+        toolCallsHandled = false;
+        let assistantContent = [];
+        let toolResults = [];
+
+        for (const content of currentResponse.content) {
+          if (content.type === 'text') {
+            finalResponse += content.text;
+            assistantContent.push(content);
+          } else if (content.type === 'tool_use') {
+            toolCallsHandled = true;
+            assistantContent.push(content);
             
-            switch (content.name) {
-              case 'read_project_file':
-                toolResult = await mcp.readProjectFile(projectName, content.input.filePath);
-                break;
-              case 'search_code':
-                toolResult = await mcp.searchCode(
-                  projectName, 
-                  content.input.pattern, 
-                  content.input.fileType
-                );
-                break;
-            }
+            console.log(`\n🔨 [Claude] Requesting tool: ${content.name}`);
+            console.log(`📋 [Claude] Tool arguments:`, JSON.stringify(content.input, null, 2));
             
-            // Send tool result back to Claude
-            const followUp = await this.anthropic.messages.create({
-              model: "claude-3-5-sonnet-20241022",
-              max_tokens: 4000,
-              messages: [
-                ...message.messages,
-                { role: "assistant", content: message.content },
-                {
-                  role: "user",
-                  content: [{
-                    type: "tool_result",
-                    tool_use_id: content.id,
-                    content: toolResult
-                  }]
-                }
-              ]
-            });
-            
-            // Append follow-up response
-            for (const followUpContent of followUp.content) {
-              if (followUpContent.type === 'text') {
-                finalResponse += '\n' + followUpContent.text;
+            try {
+              let toolResult;
+              let resultContent = '';
+              
+              switch (content.name) {
+                case 'read_project_file':
+                  try {
+                    resultContent = await mcp.readProjectFile(projectName, content.input.filePath);
+                    console.log(`Successfully read file: ${content.input.filePath}`);
+                  } catch (error) {
+                    resultContent = `Error reading file: ${error.message}`;
+                    console.error(`Failed to read file: ${content.input.filePath}`, error);
+                  }
+                  break;
+                  
+                case 'search_code':
+                  try {
+                    resultContent = await mcp.searchCode(
+                      projectName, 
+                      content.input.pattern, 
+                      content.input.fileType
+                    );
+                    console.log(`Search completed for pattern: ${content.input.pattern}`);
+                  } catch (error) {
+                    resultContent = `Error searching: ${error.message}`;
+                    console.error(`Failed to search for: ${content.input.pattern}`, error);
+                  }
+                  break;
+                  
+                default:
+                  resultContent = `Unknown tool: ${content.name}`;
               }
+              
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: content.id,
+                content: resultContent
+              });
+              
+            } catch (error) {
+              console.error(`Error calling MCP tool ${content.name}:`, error);
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: content.id,
+                content: `Error: ${error.message}`,
+                is_error: true
+              });
             }
-          } catch (error) {
-            console.error(`Error calling MCP tool ${content.name}:`, error);
           }
         }
-      }
+
+        // If we handled tool calls, send results back to Claude
+        if (toolCallsHandled && toolResults.length > 0) {
+          allMessages.push({ role: "assistant", content: assistantContent });
+          allMessages.push({ role: "user", content: toolResults });
+          
+          // Get Claude's response after processing tool results
+          currentResponse = await this.anthropic.messages.create({
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: 4000,
+            temperature: 0.7,
+            system: systemPrompt,
+            messages: allMessages,
+            tools: [
+              {
+                name: "read_project_file",
+                description: "Read a specific file from the project",
+                input_schema: {
+                  type: "object",
+                  properties: {
+                    filePath: { type: "string", description: "Path within project (e.g., src/app/page.tsx)" }
+                  },
+                  required: ["filePath"]
+                }
+              },
+              {
+                name: "search_code",
+                description: "Search for code patterns in the project",
+                input_schema: {
+                  type: "object",
+                  properties: {
+                    pattern: { type: "string" },
+                    fileType: { type: "string", description: "File extension (optional)" }
+                  },
+                  required: ["pattern"]
+                }
+              }
+            ],
+            tool_choice: { type: "auto" }
+          });
+        }
+      } while (toolCallsHandled);
 
       return finalResponse;
       

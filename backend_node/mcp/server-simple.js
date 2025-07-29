@@ -88,6 +88,28 @@ const tools = [
       required: ['projectName'],
     },
   },
+  {
+    name: 'search_code',
+    description: 'Search for code patterns in the project',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectName: {
+          type: 'string',
+          description: 'Name of the project',
+        },
+        pattern: {
+          type: 'string',
+          description: 'Search pattern or text to find',
+        },
+        fileType: {
+          type: 'string',
+          description: 'File extension to filter (optional, e.g., "tsx", "js")',
+        },
+      },
+      required: ['projectName', 'pattern'],
+    },
+  },
 ];
 
 // List available tools
@@ -169,6 +191,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             },
           ],
         };
+      }
+
+      case 'search_code': {
+        const projectPath = getProjectPath(args.projectName);
+        const { pattern, fileType } = args;
+        
+        try {
+          const results = await searchInProject(projectPath, pattern, fileType);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: results,
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error searching: ${error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
       }
 
       default:
@@ -272,6 +321,69 @@ async function analyzeProjectStructure(projectPath) {
   }
   
   return structure;
+}
+
+// Helper to search for code patterns
+async function searchInProject(projectPath, pattern, fileType) {
+  const results = [];
+  const fileExtensions = fileType ? [`.${fileType}`] : ['.ts', '.tsx', '.js', '.jsx', '.css'];
+  
+  async function searchInDirectory(dir, depth = 0) {
+    if (depth > 5) return; // Limit depth
+    
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        // Skip node_modules and hidden files
+        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+        
+        const fullPath = path.join(dir, entry.name);
+        
+        if (entry.isDirectory()) {
+          await searchInDirectory(fullPath, depth + 1);
+        } else if (entry.isFile() && fileExtensions.some(ext => entry.name.endsWith(ext))) {
+          try {
+            const content = await fs.readFile(fullPath, 'utf-8');
+            const lines = content.split('\n');
+            
+            lines.forEach((line, index) => {
+              if (line.includes(pattern)) {
+                const relativePath = path.relative(projectPath, fullPath);
+                results.push({
+                  file: relativePath,
+                  line: index + 1,
+                  content: line.trim()
+                });
+              }
+            });
+          } catch (e) {
+            // Skip files that can't be read
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Error searching in ${dir}:`, error);
+    }
+  }
+  
+  await searchInDirectory(projectPath);
+  
+  if (results.length === 0) {
+    return `No matches found for pattern: "${pattern}"`;
+  }
+  
+  // Format results
+  let output = `Found ${results.length} matches for "${pattern}":\n\n`;
+  for (const result of results.slice(0, 20)) { // Limit to 20 results
+    output += `${result.file}:${result.line}\n${result.content}\n\n`;
+  }
+  
+  if (results.length > 20) {
+    output += `... and ${results.length - 20} more matches`;
+  }
+  
+  return output;
 }
 
 // Start server
