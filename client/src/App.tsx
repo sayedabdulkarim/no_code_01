@@ -61,6 +61,12 @@ function App() {
   const [updateRequirement, setUpdateRequirement] = useState("");
   const [projectUrl, setProjectUrl] = useState<string | null>(null);
 
+  /**
+   *  1. Fix the CSS validator to preserve existing Tailwind configuration
+   *  2. Complete the MCP implementation or remove it until ready
+   *  3. Add import detection logic to the code generator
+   *  4. Use the same context (with file access) for both generation and error fixing
+   */
   const [test, setTest] = useState(false);
 
   // terminal start
@@ -520,21 +526,24 @@ function App() {
   const handleRunProject = async (projectName: string) => {
     try {
       setLoading(true);
-      
+
       // Wait for socket connection if not available
       if (!socketId) {
         addMessage("Waiting for terminal connection...", false);
         // Wait up to 3 seconds for socket connection
         let attempts = 0;
         while (!socketId && attempts < 30) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 100));
           attempts++;
         }
         if (!socketId) {
-          addMessage("⚠️ Terminal connection not established, proceeding anyway...", false);
+          addMessage(
+            "⚠️ Terminal connection not established, proceeding anyway...",
+            false
+          );
         }
       }
-      
+
       addMessage(`Starting ${projectName}...`, false);
 
       // First, stop all running projects
@@ -903,38 +912,38 @@ const ClearHistoryButton = styled.button`
 `;
 
 const ProjectInfoPanel = styled.div`
-  padding: ${props => props.theme.spacing.lg};
+  padding: ${(props) => props.theme.spacing.lg};
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  
+
   h2 {
-    color: ${props => props.theme.colors.primary};
-    margin-bottom: ${props => props.theme.spacing.lg};
+    margin-bottom: ${(props) => props.theme.spacing.lg};
+    color: ${(props) => props.theme.colors.primary};
   }
 `;
 
 const ProjectActions = styled.div`
   display: flex;
-  gap: ${props => props.theme.spacing.md};
+  gap: ${(props) => props.theme.spacing.md};
 `;
 
 const ActionButton = styled.button`
   padding: 12px 24px;
-  background: ${props => props.theme.colors.primary};
+  background: ${(props) => props.theme.colors.primary};
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.2s;
-  
+
   &:hover:not(:disabled) {
     opacity: 0.8;
   }
-  
+
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
