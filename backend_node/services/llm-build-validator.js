@@ -2,6 +2,7 @@ const { spawn } = require('child_process');
 const fs = require('fs/promises');
 const path = require('path');
 const Anthropic = require('@anthropic-ai/sdk');
+const { ClaudeServiceProduction } = require('./claude-service-production');
 const QuickFixChecker = require('./quick-fix-checker');
 const CSSConfigValidator = require('./css-config-validator');
 const FontFixer = require('./font-fixer');
@@ -12,6 +13,7 @@ class LLMBuildValidator {
   constructor(apiKey) {
     this.apiKey = apiKey;
     this.anthropic = new Anthropic({ apiKey: this.apiKey });
+    this.claudeServiceMCP = new ClaudeServiceProduction(); // MCP-enabled service for error fixing
     this.maxAttempts = 3;
     this.quickFixChecker = new QuickFixChecker();
     this.cssValidator = new CSSConfigValidator();
@@ -25,6 +27,10 @@ class LLMBuildValidator {
    */
   async validateAndFix(projectPath, prd, socket) {
     let attempt = 0;
+    
+    // Extract project name from path for MCP context
+    const projectName = path.basename(projectPath);
+    console.log(`🔧 [Build Validator] Starting validation for project: ${projectName}`);
     
     // First, clean up any stale .next directory
     await this.cleanupIncompleteBuilds(projectPath, socket);
@@ -120,7 +126,7 @@ class LLMBuildValidator {
       }
       
       try {
-        const fixes = await this.getFixesFromLLM(buildResult.output, prd, projectPath);
+        const fixes = await this.getFixesFromLLM(buildResult.output, prd, projectPath, projectName);
         
         if (fixes && fixes.files && fixes.files.length > 0) {
           if (socket) {
@@ -249,116 +255,19 @@ class LLMBuildValidator {
   }
 
   /**
-   * Send build errors to LLM and get fixes
+   * Send build errors to LLM and get fixes using MCP-enabled service
    */
-  async getFixesFromLLM(buildOutput, prd, projectPath) {
-    // Extract relevant error information
-    const errorSummary = this.extractErrorSummary(buildOutput);
-    
-    // Check for common errors that need special attention
-    const hasUseClientError = buildOutput.includes('use client') || buildOutput.includes('Client Component');
-    
-    const prompt = `
-You are an expert Next.js developer. A project build failed with errors. Analyze the errors and provide fixes.
-
-PROJECT PRD:
-${prd}
-
-BUILD ERRORS:
-${errorSummary}
-
-FULL BUILD OUTPUT:
-${buildOutput}
-
-Instructions:
-1. Analyze the build errors carefully
-2. Identify which files need to be fixed
-3. Provide the complete fixed content for each file
-4. Ensure all syntax errors are fixed
-5. Ensure all type errors are resolved
-6. Follow the project's coding patterns
-7. CRITICAL: ALWAYS preserve existing 'use client' directives at the top of files - NEVER remove them
-8. IMPORTANT: Add 'use client' directive at the top of any file that uses React hooks (useState, useEffect, etc.), event handlers (onClick, onChange), or browser-only features
-
-STRICT CONSTRAINTS WHEN FIXING:
-- If error is about missing dependency (like zustand), REMOVE the import and rewrite using React useState/useContext
-- DO NOT add new dependencies to package.json
-- DO NOT import external libraries
-- DO NOT use CSS-in-JS or styled-components
-- ONLY use these allowed packages: next, react, react-dom, typescript, tailwindcss
-- For state management: Use ONLY React useState and Context API
-- For HTTP requests: Use ONLY native fetch()
-- For styling: Use ONLY Tailwind classes
-- For forms: Use ONLY controlled components with useState
-- Maximum component size: 150 lines
-
-TAILWIND-SPECIFIC FIXES:
-- If error: "Can't resolve 'tailwindcss'" - REMOVE any import/require of tailwindcss from JS/TS files
-- NEVER add: import 'tailwindcss' or require('tailwindcss') in component files
-- Tailwind works through PostCSS, not direct imports in components
-- CRITICAL: NEVER modify src/app/globals.css - it's already properly configured by the boilerplate
-- The globals.css file already exists with the correct Tailwind configuration
-- DO NOT include globals.css in your fixes
-- If you see CSS-related errors, fix PostCSS config or other files, but NEVER touch globals.css
-- The project uses the boilerplate's Tailwind configuration - preserve it as-is
-
-EXPORT/IMPORT PATTERNS - You MUST follow these rules:
-- React Components: ALWAYS use "export default function ComponentName()" or "export default ComponentName"
-- Custom Hooks: ALWAYS use "export function useHookName()" or "export const useHookName = ()"
-- Context: ALWAYS use "export const ContextName = createContext()" 
-- Types/Interfaces: ALWAYS use "export interface" or "export type"
-- Utils/Helpers: ALWAYS use "export function functionName()" or "export const functionName = ()"
-- NEVER mix default and named exports in the same file
-- NEVER use "export { ComponentName }" at the bottom of files
-- Match imports to export patterns:
-  * Default exports: "import ComponentName from './ComponentName'"
-  * Named exports: "import { functionName } from './utils'"
-  * NEVER use "import { default as ComponentName }" pattern
-
-COMMON ISSUES TO CHECK:
-- PostCSS configuration: For Tailwind v4+ use { plugins: { '@tailwindcss/postcss': {} } }, for v3 use { plugins: { tailwindcss: {}, autoprefixer: {} } }
-- Missing dependencies: Check if autoprefixer or @tailwindcss/postcss is needed
-- Tailwind CSS errors: Ensure @tailwind directives are in globals.css
-- CSS module conflicts: Check for proper Tailwind setup
-- Import/Export mismatches: Ensure imports match the export style (default vs named)
-
-Return ONLY a valid JSON object with this structure:
-{
-  "files": [
-    {
-      "path": "src/components/Example.tsx",
-      "content": "// Complete fixed file content here",
-      "description": "Brief description of what was fixed"
-    }
-  ],
-  "summary": "Brief summary of all fixes applied"
-}
-
-IMPORTANT: Return ONLY the JSON object, no markdown formatting or explanations.
-`;
-
+  async getFixesFromLLM(buildOutput, prd, projectPath, projectName) {
     try {
-      const message = await this.anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 8000,
-        temperature: 0.3, // Lower temperature for more consistent fixes
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ]
-      });
-
-      const content = message.content?.[0]?.text;
-      if (!content) {
-        throw new Error("Empty response from LLM");
-      }
-
-      // Parse the JSON response
-      return this.parseJSON(content);
+      console.log('🔄 [Build Validator] Using MCP-enabled Claude service for error fixing');
+      console.log(`📁 [Build Validator] Project name: ${projectName}`);
+      
+      // Use MCP-enabled Claude service to fix errors with file access
+      const fixes = await this.claudeServiceMCP.fixBuildErrorsWithMCP(buildOutput, prd, projectName);
+      
+      return fixes;
     } catch (error) {
-      console.error('LLM API call failed:', error);
+      console.error('MCP-enabled error fixing failed:', error);
       throw error;
     }
   }

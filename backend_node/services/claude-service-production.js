@@ -256,96 +256,274 @@ Please analyze the existing code and generate new code that integrates seamlessl
     }
   }
 
-  // Fix build errors with MCP context
-  async fixBuildError(errorMessage, projectName) {
+  // Fix build errors with MCP context - comprehensive method for build validator
+  async fixBuildErrorsWithMCP(buildOutput, prd, projectName) {
     try {
+      console.log('\n🔍 [Claude Service] Starting MCP-enhanced error fixing');
+      console.log(`📁 [Claude Service] Project: ${projectName}`);
+      
       const mcp = await this.ensureMCPClient();
       
-      console.log(`Fixing build error for project: ${projectName}`);
+      // Extract error summary
+      const errorLines = buildOutput.split('\n').filter(line => 
+        line.includes('error') || 
+        line.includes('Error') || 
+        line.includes('Failed') ||
+        line.includes('Type error') ||
+        line.includes('Cannot find')
+      ).slice(0, 20); // Limit to prevent token overflow
       
-      // Extract file paths from error message
-      const filePathMatch = errorMessage.match(/([^\s]+\.(tsx?|jsx?|css|js))/g);
-      const relevantFiles = filePathMatch ? [...new Set(filePathMatch)] : [];
+      const errorSummary = errorLines.join('\n');
+      console.log('🐛 [Claude Service] Analyzing errors:', errorLines.length, 'error lines found');
       
-      const systemPrompt = `You are an expert debugger. Fix the build error by analyzing the actual code.
+      const systemPrompt = `You are an expert Next.js developer fixing build errors. 
       
-      You have access to read project files. Always:
-      1. Read the files mentioned in the error
-      2. Understand the full context
-      3. Provide precise fixes with exact line numbers
-      4. Ensure the fix doesn't break other code`;
+      You have access to MCP tools to read project files. Use them to:
+      1. Read files mentioned in errors to understand the actual code
+      2. Search for components/functions that are missing imports
+      3. Understand the project structure before making fixes
+      
+      CRITICAL RULES:
+      - NEVER modify src/app/globals.css - it's already configured correctly
+      - ALWAYS include all necessary imports at the top of files
+      - When you see "Cannot find name 'ComponentName'", use search_code to find where it's defined
+      - Read existing files before modifying them to preserve their structure
+      - DO NOT add external dependencies - use only React built-ins
+      - Preserve all existing 'use client' directives
+      
+      IMPORT PATTERNS:
+      - For missing components: First search for them, then add correct import based on actual location
+      - Use relative imports with correct paths
+      - Match the export style (default vs named) when importing`;
 
+      const userPrompt = `Fix these build errors for project "${projectName}":
+
+ERROR SUMMARY:
+${errorSummary}
+
+PROJECT PRD:
+${prd}
+
+FULL BUILD OUTPUT:
+${buildOutput.substring(0, 4000)}...
+
+Return ONLY a valid JSON object with this structure:
+{
+  "files": [
+    {
+      "path": "src/components/Example.tsx",
+      "content": "// Complete fixed file content here",
+      "description": "Brief description of what was fixed"
+    }
+  ],
+  "summary": "Brief summary of all fixes applied"
+}`;
+
+      // Create conversation with Claude using MCP tools
       const message = await this.anthropic.messages.create({
         model: "claude-3-5-sonnet-20241022",
-        max_tokens: 2000,
-        temperature: 0.3, // Lower temperature for precise fixes
+        max_tokens: 8000,
+        temperature: 0.3,
         system: systemPrompt,
         messages: [
           {
             role: "user",
-            content: `Project: ${projectName}
-Build Error:
-${errorMessage}
-
-Relevant files detected: ${relevantFiles.join(', ')}
-
-Please read these files and provide a precise fix.`
+            content: userPrompt
           }
         ],
         tools: [
           {
             name: "read_project_file",
-            description: "Read a file to understand the error context",
+            description: "Read a specific file from the project",
             input_schema: {
               type: "object",
               properties: {
-                filePath: { type: "string" }
+                filePath: { type: "string", description: "Path within project (e.g., src/app/page.tsx)" }
               },
               required: ["filePath"]
             }
+          },
+          {
+            name: "search_code",
+            description: "Search for code patterns in the project",
+            input_schema: {
+              type: "object",
+              properties: {
+                pattern: { type: "string" },
+                fileType: { type: "string", description: "File extension (optional)" }
+              },
+              required: ["pattern"]
+            }
+          },
+          {
+            name: "list_project_files",
+            description: "List files in a directory",
+            input_schema: {
+              type: "object",
+              properties: {
+                directory: { type: "string", description: "Directory path (e.g., src/components)" }
+              },
+              required: ["directory"]
+            }
           }
-        ]
+        ],
+        tool_choice: { type: "auto" }
       });
 
-      // Process response with tool calls
-      let fix = '';
-      
-      for (const content of message.content) {
-        if (content.type === 'text') {
-          fix += content.text;
-        } else if (content.type === 'tool_use' && content.name === 'read_project_file') {
-          const fileContent = await mcp.readProjectFile(projectName, content.input.filePath);
-          
-          // Continue conversation with file content
-          const followUp = await this.anthropic.messages.create({
-            model: "claude-3-5-sonnet-20241022",
-            max_tokens: 2000,
-            messages: [
-              ...message.messages,
-              { role: "assistant", content: message.content },
-              {
-                role: "user",
-                content: [{
-                  type: "tool_result",
-                  tool_use_id: content.id,
-                  content: fileContent
-                }]
+      // Process response with tool handling
+      let allMessages = [{ role: "user", content: userPrompt }];
+      let currentResponse = message;
+      let finalResponse = '';
+      let toolCallsHandled = false;
+
+      // Handle tool calls in a loop
+      do {
+        toolCallsHandled = false;
+        let assistantContent = [];
+        let toolResults = [];
+
+        for (const content of currentResponse.content) {
+          if (content.type === 'text') {
+            finalResponse += content.text;
+            assistantContent.push(content);
+          } else if (content.type === 'tool_use') {
+            toolCallsHandled = true;
+            assistantContent.push(content);
+            
+            console.log(`\n🔨 [Claude Error Fixer] Requesting tool: ${content.name}`);
+            console.log(`📋 [Claude Error Fixer] Tool arguments:`, JSON.stringify(content.input, null, 2));
+            
+            try {
+              let resultContent = '';
+              
+              switch (content.name) {
+                case 'read_project_file':
+                  try {
+                    resultContent = await mcp.readProjectFile(projectName, content.input.filePath);
+                    console.log(`✅ [Claude Error Fixer] Read file: ${content.input.filePath}`);
+                  } catch (error) {
+                    resultContent = `Error reading file: ${error.message}`;
+                  }
+                  break;
+                  
+                case 'search_code':
+                  try {
+                    resultContent = await mcp.searchCode(
+                      projectName, 
+                      content.input.pattern, 
+                      content.input.fileType
+                    );
+                    console.log(`✅ [Claude Error Fixer] Searched for: ${content.input.pattern}`);
+                  } catch (error) {
+                    resultContent = `Error searching: ${error.message}`;
+                  }
+                  break;
+                  
+                case 'list_project_files':
+                  try {
+                    resultContent = await mcp.listProjectFiles(projectName, content.input.directory);
+                    console.log(`✅ [Claude Error Fixer] Listed files in: ${content.input.directory}`);
+                  } catch (error) {
+                    resultContent = `Error listing files: ${error.message}`;
+                  }
+                  break;
               }
-            ]
-          });
-          
-          for (const followUpContent of followUp.content) {
-            if (followUpContent.type === 'text') {
-              fix += '\n' + followUpContent.text;
+              
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: content.id,
+                content: resultContent
+              });
+              
+            } catch (error) {
+              console.error(`❌ [Claude Error Fixer] Tool error:`, error);
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: content.id,
+                content: `Error: ${error.message}`,
+                is_error: true
+              });
             }
           }
         }
-      }
 
-      return fix;
+        // If we handled tool calls, continue the conversation
+        if (toolCallsHandled && toolResults.length > 0) {
+          allMessages.push({ role: "assistant", content: assistantContent });
+          allMessages.push({ role: "user", content: toolResults });
+          
+          currentResponse = await this.anthropic.messages.create({
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: 8000,
+            temperature: 0.3,
+            system: systemPrompt,
+            messages: allMessages,
+            tools: [
+              {
+                name: "read_project_file",
+                description: "Read a specific file from the project",
+                input_schema: {
+                  type: "object",
+                  properties: {
+                    filePath: { type: "string" }
+                  },
+                  required: ["filePath"]
+                }
+              },
+              {
+                name: "search_code",
+                description: "Search for code patterns in the project",
+                input_schema: {
+                  type: "object",
+                  properties: {
+                    pattern: { type: "string" },
+                    fileType: { type: "string" }
+                  },
+                  required: ["pattern"]
+                }
+              },
+              {
+                name: "list_project_files",
+                description: "List files in a directory",
+                input_schema: {
+                  type: "object",
+                  properties: {
+                    directory: { type: "string" }
+                  },
+                  required: ["directory"]
+                }
+              }
+            ],
+            tool_choice: { type: "auto" }
+          });
+        }
+      } while (toolCallsHandled);
+
+      console.log('📝 [Claude Error Fixer] Parsing fixes from response');
+      
+      // Parse JSON from response
+      try {
+        const jsonMatch = finalResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          console.log(`✅ [Claude Error Fixer] Generated ${parsed.files?.length || 0} fixes`);
+          return parsed;
+        }
+      } catch (e) {
+        console.error('❌ [Claude Error Fixer] Failed to parse JSON:', e);
+      }
+      
+      // Try direct parsing if no regex match
+      try {
+        const parsed = JSON.parse(finalResponse);
+        return parsed;
+      } catch (e) {
+        throw new Error(`Failed to parse fixes: ${e.message}`);
+      }
       
     } catch (error) {
-      throw new ClaudeServiceError(`Error fixing build error: ${error.message}`);
+      console.error('❌ [Claude Error Fixer] Error:', error);
+      throw new ClaudeServiceError(`Error fixing build errors with MCP: ${error.message}`);
     }
   }
 
