@@ -395,9 +395,30 @@ function App() {
       fetchProjects();
 
       addMessage(
-        "Project initialization complete! You can now start working on your project.",
+        "Project initialization complete! Starting development server...",
         false
       );
+
+      // Automatically run the project after LLM updates complete
+      // Add a small delay to ensure files are fully written
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Set loading to false before running the project
+      setLoading(false);
+      
+      try {
+        await handleRunProject(projectName);
+        addMessage(
+          "✅ Project is now running! Check the Preview tab to see your application.",
+          false
+        );
+      } catch (runError) {
+        console.error("Failed to auto-run project:", runError);
+        addMessage(
+          "⚠️ Could not start project automatically. Click 'Run Project' to start it manually.",
+          false
+        );
+      }
     } catch (err: any) {
       console.error("Error initializing project:", err);
       setError("Failed to initialize the project. Please try again.");
@@ -406,7 +427,6 @@ function App() {
           err.response?.data?.details || err.message
         }`
       );
-    } finally {
       setLoading(false);
     }
   };
