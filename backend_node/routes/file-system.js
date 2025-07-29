@@ -1,6 +1,8 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs").promises;
+const archiver = require("archiver");
+const { createReadStream } = require("fs");
 
 const router = express.Router();
 
@@ -164,6 +166,64 @@ router.delete(/^\/api\/project-file\/(.+)$/, async (req, res) => {
       throw error;
     }
   });
+});
+
+// Download project as ZIP
+router.get("/api/download-project/:projectName", async (req, res) => {
+  try {
+    const { projectName } = req.params;
+    const projectPath = path.join(__dirname, "..", "..", "client", "user-projects", projectName);
+    
+    // Check if project exists
+    try {
+      await fs.access(projectPath);
+    } catch {
+      return res.status(404).json({ error: "Project not found" });
+    }
+    
+    // Set response headers
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${projectName}.zip"`);
+    
+    // Create a zip archive
+    const archive = archiver('zip', {
+      zlib: { level: 9 } // Maximum compression
+    });
+    
+    // Handle archive errors
+    archive.on('error', (err) => {
+      console.error('Archive error:', err);
+      res.status(500).send({ error: 'Failed to create archive' });
+    });
+    
+    // Pipe archive data to response
+    archive.pipe(res);
+    
+    // Add project directory to archive, excluding node_modules and .next
+    archive.directory(projectPath, false, (entryData) => {
+      // Exclude node_modules, .next, and other build artifacts
+      const excludePaths = ['node_modules', '.next', '.git', 'dist', 'build'];
+      const relativePath = entryData.name;
+      
+      // Check if the current path should be excluded
+      for (const excludePath of excludePaths) {
+        if (relativePath.includes(excludePath)) {
+          return false; // Exclude this file/directory
+        }
+      }
+      
+      return entryData;
+    });
+    
+    // Finalize the archive
+    await archive.finalize();
+    
+  } catch (error) {
+    console.error("Error downloading project:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to download project" });
+    }
+  }
 });
 
 module.exports = router;

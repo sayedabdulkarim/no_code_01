@@ -19,6 +19,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.57.0",
     "@modelcontextprotocol/sdk": "^1.17.0",
+    "archiver": "^5.3.0",
     "axios": "^1.9.0",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",

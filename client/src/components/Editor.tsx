@@ -27,6 +27,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   
 
   // Fetch file tree when project changes
@@ -182,6 +183,36 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
     return iconMap[ext || ''] || '📄';
   };
 
+  const handleDownloadProject = async () => {
+    if (!projectName) return;
+    
+    setDownloading(true);
+    try {
+      const response = await axios.get(
+        `http://localhost:5001/api/download-project/${projectName}`,
+        {
+          responseType: 'blob',
+        }
+      );
+      
+      // Create a download link
+      const blob = new Blob([response.data], { type: 'application/zip' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${projectName}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download project:', error);
+      alert('Failed to download project. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const renderFileTree = (nodes: FileNode[], level = 0) => {
     return nodes.map(node => {
       if (node.type === 'directory') {
@@ -230,7 +261,16 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
     <Container>
       <FileExplorer>
         <ExplorerHeader>
-          <h4>EXPLORER</h4>
+          <HeaderContent>
+            <h4>EXPLORER</h4>
+            <DownloadButton 
+              onClick={handleDownloadProject}
+              disabled={downloading}
+              title="Download project as ZIP"
+            >
+              {downloading ? '⏳' : '📥'}
+            </DownloadButton>
+          </HeaderContent>
         </ExplorerHeader>
         <FileTree>
           {loading ? (
@@ -359,6 +399,12 @@ const FileExplorer = styled.div`
 const ExplorerHeader = styled.div`
   padding: ${props => props.theme.spacing.sm} ${props => props.theme.spacing.md};
   border-bottom: 1px solid ${props => props.theme.colors.border};
+`;
+
+const HeaderContent = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   
   h4 {
     margin: 0;
@@ -366,6 +412,26 @@ const ExplorerHeader = styled.div`
     font-weight: 600;
     color: ${props => props.theme.colors.text};
     opacity: 0.7;
+  }
+`;
+
+const DownloadButton = styled.button`
+  background: none;
+  border: none;
+  color: ${props => props.theme.colors.text};
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  
+  &:hover:not(:disabled) {
+    background: ${props => props.theme.colors.primary}20;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
