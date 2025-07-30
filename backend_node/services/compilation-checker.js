@@ -707,6 +707,7 @@ class CompilationChecker {
    */
   async cleanupBuildArtifacts(projectPath, socket) {
     const nextDir = path.join(projectPath, '.next');
+    const nodeModulesCacheDir = path.join(projectPath, 'node_modules', '.cache');
     
     try {
       // Check if .next directory exists
@@ -724,6 +725,18 @@ class CompilationChecker {
       }
     } catch (err) {
       // Directory doesn't exist, which is fine
+    }
+    
+    try {
+      // Also clean node_modules cache to prevent corrupted module builds
+      await fs.access(nodeModulesCacheDir);
+      await fs.rm(nodeModulesCacheDir, { recursive: true, force: true });
+      
+      if (socket) {
+        socket.emit('output', '\x1b[32m✓ Module cache cleaned\x1b[0m\n');
+      }
+    } catch (err) {
+      // Cache directory doesn't exist, which is fine
     }
   }
   

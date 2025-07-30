@@ -3,23 +3,25 @@
 import { useState } from 'react';
 import ColorSpectrum from './ColorSpectrum';
 import PresetColors from './PresetColors';
-import type { HexColor } from '../../types/color';
-
-interface ColorState {
-  hex: HexColor;
-}
+import type { HexColor, ColorState } from '../../types/color';
 
 export default function ColorPickerContainer() {
-  const [selectedColor, setSelectedColor] = useState<ColorState>({ hex: '#000000' });
+  const [selectedColor, setSelectedColor] = useState<ColorState>({
+    currentColor: '#000000',
+    previousColor: '#000000'
+  });
   const [isCopied, setIsCopied] = useState(false);
 
   const handleColorSelect = (color: HexColor) => {
-    setSelectedColor({ hex: color });
+    setSelectedColor(prev => ({
+      previousColor: prev.currentColor,
+      currentColor: color
+    }));
   };
 
   const handleCopyToClipboard = async () => {
     try {
-      await navigator.clipboard.writeText(selectedColor.hex);
+      await navigator.clipboard.writeText(selectedColor.currentColor);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
     } catch (err) {
@@ -34,9 +36,9 @@ export default function ColorPickerContainer() {
         <div className="relative">
           <div 
             className="w-full h-40 rounded-lg border border-gray-200"
-            style={{ backgroundColor: selectedColor.hex }}
+            style={{ backgroundColor: selectedColor.currentColor }}
             role="presentation"
-            aria-label={`Selected color: ${selectedColor.hex}`}
+            aria-label={`Selected color: ${selectedColor.currentColor}`}
           />
         </div>
 
@@ -46,14 +48,14 @@ export default function ColorPickerContainer() {
         {/* Preset Colors */}
         <PresetColors 
           onColorSelect={handleColorSelect}
-          selectedColor={selectedColor.hex}
+          selectedColor={selectedColor.currentColor}
         />
 
         {/* Hex Code Display and Copy Button */}
         <div className="flex items-center space-x-4">
           <div className="flex-1">
             <p className="text-sm text-gray-500">Hex Code:</p>
-            <p className="text-lg font-mono font-semibold">{selectedColor.hex}</p>
+            <p className="text-lg font-mono font-semibold">{selectedColor.currentColor}</p>
           </div>
           <button
             onClick={handleCopyToClipboard}
@@ -61,7 +63,7 @@ export default function ColorPickerContainer() {
               ${isCopied 
                 ? 'bg-green-500 text-white' 
                 : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
-            aria-label={`Copy hex code ${selectedColor.hex}`}
+            aria-label={`Copy hex code ${selectedColor.currentColor}`}
           >
             {isCopied ? 'Copied!' : 'Copy'}
           </button>

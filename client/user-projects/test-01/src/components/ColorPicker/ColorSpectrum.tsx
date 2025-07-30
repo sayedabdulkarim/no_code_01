@@ -55,16 +55,21 @@ const ColorSpectrum: React.FC<ColorSpectrumProps> = ({
     onColorSelect(selectedColor as HexColor);
   }, [onColorSelect]);
 
+  const handleResize = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    drawSpectrum(canvas);
+  }, [drawSpectrum]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     // Set canvas size
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
-
-    // Draw initial spectrum
-    drawSpectrum(canvas);
+    handleResize();
 
     // Event handlers
     const handleMouseDown = (e: MouseEvent) => {
@@ -105,6 +110,7 @@ const ColorSpectrum: React.FC<ColorSpectrumProps> = ({
     canvas.addEventListener('touchstart', handleTouchStart);
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('resize', handleResize);
 
     // Cleanup
     return () => {
@@ -114,8 +120,9 @@ const ColorSpectrum: React.FC<ColorSpectrumProps> = ({
       canvas.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('resize', handleResize);
     };
-  }, [drawSpectrum, handleColorSelection]);
+  }, [drawSpectrum, handleColorSelection, handleResize]);
 
   return (
     <canvas

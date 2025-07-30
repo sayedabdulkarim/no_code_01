@@ -4,6 +4,7 @@ const path = require("path");
 const TaskBasedGeneratorMCP = require("./task-based-generator-mcp");
 const CompilationChecker = require("./compilation-checker");
 const LLMBuildValidator = require("./llm-build-validator");
+const projectManager = require("./project-manager");
 require("dotenv").config();
 
 const router = express.Router();
@@ -27,10 +28,30 @@ router.post("/update-project-v2", async (req, res) => {
   const baseDir = path.join(__dirname, "../../client/user-projects");
   const projectPath = path.join(baseDir, projectName);
   const prdPath = path.join(projectPath, "PRD.md");
+  
+  // Track if dev server was running before update
+  let projectWasRunning = false;
+  
+  // Initialize compilation checker once
+  const compilationChecker = new CompilationChecker();
 
   try {
     console.log(`Starting update-project-v2 for project: ${projectName}`);
     console.log(`Update requirements: "${requirements}"`);
+    
+    // Stop the dev server if it's running to prevent build cache corruption
+    projectWasRunning = projectManager.stopProject(projectName);
+    if (projectWasRunning) {
+      console.log(`Stopped running dev server for ${projectName}`);
+      if (socket) {
+        socket.emit('output', '\x1b[36m> Stopping development server for update...\x1b[0m\n');
+      }
+      // Wait a moment for the process to fully terminate
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    // Clean up build artifacts before update to prevent corruption
+    await compilationChecker.cleanupBuildArtifacts(projectPath, socket);
     
     // Check if PRD file exists
     try {
@@ -173,7 +194,6 @@ router.post("/update-project-v2", async (req, res) => {
       socket.emit('output', '\x1b[1;34m> Checking for compilation errors...\x1b[0m\n');
     }
     
-    const compilationChecker = new CompilationChecker();
     const compilationResult = await compilationChecker.checkAndFix(projectPath, socket);
     
     let llmValidationResult = { success: false };
@@ -204,6 +224,24 @@ router.post("/update-project-v2", async (req, res) => {
       }
     }
 
+    // Restart dev server if it was running before and update was successful
+    if (projectWasRunning && llmValidationResult.success) {
+      if (socket) {
+        socket.emit('output', '\n\x1b[36m> Restarting development server...\x1b[0m\n');
+      }
+      try {
+        const projectInfo = await projectManager.startProject(projectPath, socket);
+        if (socket) {
+          socket.emit('output', `\x1b[32m✓ Development server restarted at ${projectInfo.url}\x1b[0m\n`);
+        }
+      } catch (restartError) {
+        console.error('Failed to restart dev server:', restartError);
+        if (socket) {
+          socket.emit('output', '\x1b[33m⚠ Please manually restart the development server\x1b[0m\n');
+        }
+      }
+    }
+    
     // Return response
     return res.json({
       message: finalMessage,
@@ -213,7 +251,8 @@ router.post("/update-project-v2", async (req, res) => {
         compilationAttempts: compilationResult.attempts,
         compilationErrors: compilationResult.errors?.length || 0,
         llmValidationSuccess: llmValidationResult.success,
-        llmValidationAttempts: llmValidationResult.attempts || 0
+        llmValidationAttempts: llmValidationResult.attempts || 0,
+        devServerRestarted: projectWasRunning && llmValidationResult.success
       },
       details: results.results
     });

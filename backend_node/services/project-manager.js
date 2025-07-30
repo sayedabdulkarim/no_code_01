@@ -27,6 +27,8 @@ class ProjectManager {
     try {
       // Clean up .next directory to prevent build artifact conflicts
       const nextDir = path.join(projectPath, '.next');
+      const nodeModulesCacheDir = path.join(projectPath, 'node_modules', '.cache');
+      
       try {
         await fs.rm(nextDir, { recursive: true, force: true });
         if (socket) {
@@ -35,6 +37,17 @@ class ProjectManager {
       } catch (cleanupError) {
         // Directory might not exist, that's ok
         console.log('No .next directory to clean');
+      }
+      
+      // Also clean node_modules cache
+      try {
+        await fs.rm(nodeModulesCacheDir, { recursive: true, force: true });
+        if (socket) {
+          socket.emit('output', `\x1b[36m> Cleaned module cache\x1b[0m\n`);
+        }
+      } catch (cleanupError) {
+        // Cache might not exist, that's ok
+        console.log('No node_modules cache to clean');
       }
 
       // Find an available port starting from 3002 (to avoid conflicts with main app)
