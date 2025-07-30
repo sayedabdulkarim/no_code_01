@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import styled from '@emotion/styled';
 import axios from 'axios';
@@ -46,6 +46,8 @@ const ProjectPage: React.FC = () => {
   const [prd, setPRD] = useState<string | null>(null);
   const [socketId, setSocketId] = useState<string | null>(null);
   const [projectUrl, setProjectUrl] = useState<string | undefined>(undefined);
+  const [requirement, setRequirement] = useState<string>('');
+  const socketIdRef = useRef<string | null>(null);
   
   // Check if this is a new project
   const isNewProject = projectId === 'new';
@@ -71,11 +73,14 @@ const ProjectPage: React.FC = () => {
   const handleSocketReady = useCallback((id: string) => {
     console.log('Terminal socket ready:', id);
     setSocketId(id);
+    socketIdRef.current = id;
   }, []);
   
   // Initialize the page
   useEffect(() => {
     if (isNewProject && initialRequirement) {
+      // Store the requirement
+      setRequirement(initialRequirement);
       // Automatically generate PRD for new project
       handleSendMessage(initialRequirement);
     } else if (!isNewProject) {
@@ -152,9 +157,144 @@ const ProjectPage: React.FC = () => {
       return;
     }
     
-    // TODO: Implement PRD approval logic
-    console.log('PRD approved, initializing project...');
-    setPRD(null);
+    if (!prd) {
+      setMessages(prev => [
+        ...prev,
+        {
+          type: 'agent',
+          content: 'Error: Missing PRD. Please try again.',
+          category: 'error'
+        }
+      ]);
+      return;
+    }
+    
+    // If socket isn't ready yet, wait for it
+    if (!socketId) {
+      setMessages(prev => [
+        ...prev,
+        {
+          type: 'agent',
+          content: 'Waiting for terminal connection...',
+          category: 'analysis'
+        }
+      ]);
+      
+      // Wait for socket to be ready
+      const checkSocket = setInterval(() => {
+        if (socketIdRef.current) {
+          clearInterval(checkSocket);
+          handlePRDApproval(true); // Retry with socket ready
+        }
+      }, 500);
+      
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        clearInterval(checkSocket);
+        if (!socketIdRef.current) {
+          setMessages(prev => [
+            ...prev,
+            {
+              type: 'agent',
+              content: 'Error: Could not establish terminal connection. Please refresh and try again.',
+              category: 'error'
+            }
+          ]);
+          setLoading(false);
+        }
+      }, 10000);
+      
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      // Initialize the project with the approved PRD
+      const result = await axios.post(
+        'http://localhost:5001/api/initialize-project',
+        { prd, socketId }
+      );
+      
+      const projectName = result.data.projectName;
+      
+      // Update messages to show project creation success
+      setMessages(prev => [
+        ...prev,
+        {
+          type: 'agent',
+          content: `Project "${projectName}" created successfully!`,
+          category: 'success'
+        }
+      ]);
+      
+      // Check if project URL is available (dev server started)
+      if (result.data.url) {
+        setProjectUrl(result.data.url);
+        setMessages(prev => [
+          ...prev,
+          {
+            type: 'agent',
+            content: `🚀 Development server running at: ${result.data.url}`,
+            category: 'success'
+          }
+        ]);
+      }
+      
+      // Hide PRD panel and show chat
+      setPRD(null);
+      
+      // Now generate the code for the project
+      setMessages(prev => [
+        ...prev,
+        {
+          type: 'agent',
+          content: 'Starting code generation based on the PRD...',
+          category: 'analysis'
+        }
+      ]);
+      
+      // Call generate-v2 endpoint to generate the code
+      const generateResult = await axios.post(
+        'http://localhost:5001/api/generate-v2',
+        { 
+          requirement: requirement || initialRequirement || messages.find(m => m.type === 'user')?.content,
+          socketId 
+        }
+      );
+      
+      if (generateResult.data.success) {
+        setMessages(prev => [
+          ...prev,
+          {
+            type: 'agent',
+            content: '✅ Project generated successfully! Your app is ready.',
+            category: 'success'
+          }
+        ]);
+        
+        // Update project URL if provided
+        if (generateResult.data.url) {
+          setProjectUrl(generateResult.data.url);
+        }
+      }
+      
+      // Navigate to the new project page
+      navigate(`/project/${projectName}`, { replace: true });
+      
+    } catch (error) {
+      console.error('Error initializing project:', error);
+      setMessages(prev => [
+        ...prev,
+        {
+          type: 'agent',
+          content: 'Failed to initialize project. Please check the terminal for details.',
+          category: 'error'
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
   };
   
   return (

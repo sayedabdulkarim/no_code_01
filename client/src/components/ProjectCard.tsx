@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import styled from '@emotion/styled';
 import { useNavigate } from 'react-router-dom';
 
@@ -96,25 +96,47 @@ interface ProjectCardProps {
 const ProjectCard: React.FC<ProjectCardProps> = ({ projectName, lastModified }) => {
   const navigate = useNavigate();
   
-  // Generate random gradient for thumbnail
-  const gradients = [
-    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-    'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-    'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-    'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-  ];
+  // Memoize random gradient based on project name
+  const randomGradient = useMemo(() => {
+    const gradients = [
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+      'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+      'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+      'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+    ];
+    
+    // Use project name to generate a consistent index
+    let hash = 0;
+    for (let i = 0; i < projectName.length; i++) {
+      hash = ((hash << 5) - hash) + projectName.charCodeAt(i);
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    const index = Math.abs(hash) % gradients.length;
+    return gradients[index];
+  }, [projectName]);
   
-  const randomGradient = gradients[Math.floor(Math.random() * gradients.length)];
-  
-  // Generate random last modified time if not provided
-  const modifiedTime = lastModified || [
-    '2 hours ago',
-    '5 hours ago',
-    '1 day ago',
-    '2 days ago',
-    '1 week ago',
-  ][Math.floor(Math.random() * 5)];
+  // Memoize modified time
+  const modifiedTime = useMemo(() => {
+    if (lastModified) return lastModified;
+    
+    const times = [
+      '2 hours ago',
+      '5 hours ago',
+      '1 day ago',
+      '2 days ago',
+      '1 week ago',
+    ];
+    
+    // Use project name to generate a consistent time
+    let hash = 0;
+    for (let i = 0; i < projectName.length; i++) {
+      hash = ((hash << 3) - hash) + projectName.charCodeAt(i);
+      hash = hash & hash;
+    }
+    const index = Math.abs(hash) % times.length;
+    return times[index];
+  }, [projectName, lastModified]);
   
   const handleClick = () => {
     navigate(`/project/${projectName}`);
