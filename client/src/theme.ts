@@ -7,6 +7,7 @@ declare module "@emotion/react" {
       surface: string;
       primary: string;
       text: string;
+      textSecondary: string;
       border: string;
     };
     spacing: {
@@ -23,6 +24,7 @@ export const darkTheme = {
     surface: "#252526",
     primary: "#0066cc",
     text: "#cccccc",
+    textSecondary: "#808080",
     border: "#404040",
   },
   spacing: {
