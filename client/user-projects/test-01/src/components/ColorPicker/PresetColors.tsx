@@ -1,3 +1,5 @@
+'use client';
+
 import { PresetColor, HexColor } from '../../types/color';
 
 interface PresetColorsProps {

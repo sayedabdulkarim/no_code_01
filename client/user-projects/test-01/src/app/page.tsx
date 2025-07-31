@@ -15,6 +15,9 @@ export default function Home() {
           <p className="text-gray-600 mt-2">
             A simple and intuitive tool for designers and developers to pick colors and copy their hex codes with a single click
           </p>
+          <p className="text-gray-600 mt-4">
+            Use the color spectrum to find your perfect color, or choose from preset options. Click the copy button to save the hex code to your clipboard. Perfect for web design, branding, and development projects.
+          </p>
         </div>
 
         {/* Color Picker Component */}

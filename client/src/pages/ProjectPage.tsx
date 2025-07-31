@@ -368,7 +368,7 @@ const ProjectPage: React.FC = () => {
           "http://localhost:5001/api/update-project-v2",
           {
             projectName: projectId,
-            requirement: message,
+            requirements: message,
             socketId,
           }
         );
