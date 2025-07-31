@@ -20,6 +20,7 @@ const MainContent = styled.main`
   flex: 1;
   display: flex;
   overflow: hidden;
+  height: calc(100vh - 60px); /* Subtract header height */
 `;
 
 function App() {

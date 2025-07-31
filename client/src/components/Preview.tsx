@@ -45,9 +45,12 @@ const Preview: React.FC<PreviewProps> = ({ projectUrl, projectName }) => {
 
 const Container = styled.div`
   height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
   background: ${props => props.theme.colors.background};
+  position: relative;
+  overflow: hidden;
 `;
 
 const EmptyState = styled.div`
@@ -111,6 +114,8 @@ const IframeContainer = styled.div`
   flex: 1;
   position: relative;
   background: white;
+  width: 100%;
+  min-height: 0;
 `;
 
 const PreviewIframe = styled.iframe`

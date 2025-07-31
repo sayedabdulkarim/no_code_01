@@ -16,9 +16,19 @@ const TerminalContainer = styled.div`
   background-color: #1e1e1e;
   border-radius: 4px;
   overflow: hidden;
+  position: relative;
 
   .xterm {
     height: 100%;
+    padding: 8px;
+  }
+  
+  .xterm-viewport {
+    overflow-y: auto !important;
+  }
+  
+  .xterm-screen {
+    height: 100% !important;
   }
 `;
 

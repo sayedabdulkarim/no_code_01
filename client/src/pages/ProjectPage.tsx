@@ -13,6 +13,7 @@ const PageContainer = styled.div`
   height: 100%;
   display: flex;
   background: ${props => props.theme.colors.background};
+  position: relative;
 `;
 
 const LeftPanel = styled.div`
@@ -32,8 +33,14 @@ const RightPanel = styled.div`
   overflow: hidden;
 `;
 
+
 interface PRDResponse {
   prd: string;
+}
+
+interface StartProjectResponse {
+  port: number;
+  url: string;
 }
 
 const ProjectPage: React.FC = () => {
@@ -42,16 +49,24 @@ const ProjectPage: React.FC = () => {
   const navigate = useNavigate();
   
   const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoadingState] = useState(false);
+  
+  // Wrapper to track loading state changes
+  const setLoading = (value: boolean) => {
+    setLoadingState(value);
+  };
+  const [isInitializing, setIsInitializing] = useState(true); // Track initial load
   const [prd, setPRD] = useState<string | null>(null);
   const [socketId, setSocketId] = useState<string | null>(null);
   const [projectUrl, setProjectUrl] = useState<string | undefined>(undefined);
   const [requirement, setRequirement] = useState<string>('');
+  const [isProjectRunning, setIsProjectRunning] = useState(false);
   const socketIdRef = useRef<string | null>(null);
   
   // Check if this is a new project
   const isNewProject = projectId === 'new';
   const initialRequirement = location.state?.requirement;
+  
   
   // Terminal state handlers
   const addMessage = useCallback((text: string, isError: boolean) => {
@@ -76,6 +91,130 @@ const ProjectPage: React.FC = () => {
     socketIdRef.current = id;
   }, []);
   
+  // Start project function
+  const startProject = useCallback(async () => {
+    if (!projectId || isNewProject) return;
+    
+    setLoading(true);
+    try {
+      // Get project path from the backend
+      const projectsResponse = await axios.get('http://localhost:5001/api/list-projects');
+      const project = projectsResponse.data.projects.find((p: any) => p.name === projectId);
+      
+      if (!project) {
+        throw new Error('Project not found');
+      }
+      
+      const response = await axios.post<StartProjectResponse>(
+        'http://localhost:5001/api/start-project',
+        { projectPath: project.path, socketId }
+      );
+      
+      if (response.data.url) {
+        setProjectUrl(response.data.url);
+        setIsProjectRunning(true);
+        setMessages(prev => [
+          ...prev,
+          {
+            type: 'agent',
+            content: `✅ Project started successfully at: ${response.data.url}`,
+            category: 'success'
+          }
+        ]);
+      }
+    } catch (error) {
+      console.error('Error starting project:', error);
+      setMessages(prev => [
+        ...prev,
+        {
+          type: 'agent',
+          content: 'Failed to start project. Please check the terminal for details.',
+          category: 'error'
+        }
+      ]);
+    } finally {
+      // Only reset loading if it was set
+      if (loading) {
+        setLoading(false);
+      }
+    }
+  }, [projectId, isNewProject, socketId]);
+  
+  // Fetch project status for existing projects
+  const fetchProjectStatus = useCallback(async (projectName: string, showMessage = true) => {
+    try {
+      const response = await axios.get('http://localhost:5001/api/running-projects');
+      const runningProject = response.data.projects.find((p: any) => p.name === projectName);
+      
+      if (runningProject) {
+        const wasRunning = isProjectRunning;
+        setProjectUrl(runningProject.url);
+        setIsProjectRunning(true);
+        
+        // Reset loading state when project is detected as running
+        if (loading) {
+          setLoading(false);
+        }
+        
+        // Only show message on initial load or status change
+        if (showMessage && !wasRunning) {
+          setMessages(prev => [
+            ...prev,
+            {
+              type: 'agent',
+              content: `🚀 Your project is running at: ${runningProject.url}`,
+              category: 'success'
+            }
+          ]);
+        }
+        return true; // Project is running
+      } else {
+        const wasRunning = isProjectRunning;
+        setIsProjectRunning(false);
+        setProjectUrl(undefined);
+        
+        // Only show message on initial load or status change
+        if (showMessage && wasRunning !== false) {
+          setMessages(prev => [
+            ...prev,
+            {
+              type: 'agent',
+              content: 'Starting your project...',
+              category: 'analysis'
+            }
+          ]);
+        }
+        return false; // Project is not running
+      }
+    } catch (error) {
+      console.error('Error fetching project status:', error);
+      return false;
+    }
+  }, [isProjectRunning, loading]);
+
+  // Check if project exists
+  const checkProjectExists = useCallback(async (projectName: string) => {
+    try {
+      const response = await axios.get('http://localhost:5001/api/list-projects');
+      const projectExists = response.data.projects.some((p: any) => p.name === projectName);
+      
+      if (!projectExists) {
+        // Project doesn't exist, redirect to home
+        setMessages([{
+          type: 'agent',
+          content: `Project "${projectName}" not found. Redirecting to home...`,
+          category: 'error'
+        }]);
+        setTimeout(() => navigate('/'), 2000);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Error checking project existence:', error);
+      return false;
+    }
+  }, [navigate]);
+
   // Initialize the page
   useEffect(() => {
     if (isNewProject && initialRequirement) {
@@ -83,17 +222,47 @@ const ProjectPage: React.FC = () => {
       setRequirement(initialRequirement);
       // Automatically generate PRD for new project
       handleSendMessage(initialRequirement);
-    } else if (!isNewProject) {
-      // Show welcome message for existing project
-      setMessages([{
-        type: 'agent',
-        content: 'Welcome back! Please add your requirement and I\'m happy to help update your project.',
-        category: 'success'
-      }]);
+      setIsInitializing(false);
+    } else if (!isNewProject && projectId) {
+      // For existing projects
+      setLoading(false); // Ensure loading is false for existing projects
+      checkProjectExists(projectId).then(exists => {
+        if (exists) {
+          setMessages([{
+            type: 'agent',
+            content: `Welcome back to ${projectId}! How can I help you update your project?`,
+            category: 'success'
+          }]);
+          // Fetch project status
+          fetchProjectStatus(projectId);
+        }
+        setIsInitializing(false);
+      });
+    } else {
+      setIsInitializing(false);
     }
-  }, [isNewProject, initialRequirement]);
+  }, [isNewProject, initialRequirement, projectId, checkProjectExists, fetchProjectStatus]);
+  
+  // Auto-start project when socket is ready - removed this as it causes issues
+  // The periodic check will handle starting if needed
+  
+  // Periodically check project status for existing projects
+  useEffect(() => {
+    if (!isNewProject && projectId) {
+      const interval = setInterval(() => {
+        fetchProjectStatus(projectId, false); // Don't show messages on periodic checks
+      }, 5000); // Check every 5 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [isNewProject, projectId, fetchProjectStatus]);
   
   const handleSendMessage = async (message: string) => {
+    // Don't set loading for existing projects - only for PRD generation
+    if (isNewProject && !prd) {
+      setLoading(true);
+    }
+    
     setMessages(prev => [
       ...prev,
       {
@@ -102,8 +271,6 @@ const ProjectPage: React.FC = () => {
         category: 'requirement'
       }
     ]);
-    
-    setLoading(true);
     
     try {
       if (isNewProject && !prd) {
@@ -125,15 +292,35 @@ const ProjectPage: React.FC = () => {
         setPRD(prdResult.data.prd);
       } else {
         // Handle updates for existing project
-        // TODO: Implement update logic
         setMessages(prev => [
           ...prev,
           {
             type: 'agent',
-            content: 'Update functionality will be implemented here.',
-            category: 'success'
+            content: 'Analyzing your update request...',
+            category: 'analysis'
           }
         ]);
+        
+        // Call update endpoint
+        const updateResult = await axios.post(
+          'http://localhost:5001/api/update-project-v2',
+          { 
+            projectName: projectId,
+            requirement: message,
+            socketId 
+          }
+        );
+        
+        if (updateResult.data.success) {
+          setMessages(prev => [
+            ...prev,
+            {
+              type: 'agent',
+              content: '✅ Project updated successfully! Check the preview to see your changes.',
+              category: 'success'
+            }
+          ]);
+        }
       }
     } catch (err) {
       console.error('Error:', err);
@@ -146,7 +333,10 @@ const ProjectPage: React.FC = () => {
         }
       ]);
     } finally {
-      setLoading(false);
+      // Only reset loading if it was set
+      if (loading) {
+        setLoading(false);
+      }
     }
   };
   
@@ -293,7 +483,10 @@ const ProjectPage: React.FC = () => {
         }
       ]);
     } finally {
-      setLoading(false);
+      // Only reset loading if it was set
+      if (loading) {
+        setLoading(false);
+      }
     }
   };
   

@@ -386,7 +386,10 @@ function getLanguageFromPath(path: string): string {
 const Container = styled.div`
   display: flex;
   height: 100%;
+  width: 100%;
   background: ${props => props.theme.colors.background};
+  position: relative;
+  overflow: hidden;
 `;
 
 const FileExplorer = styled.div`
@@ -539,6 +542,10 @@ const CloseButton = styled.span`
 const EditorContainer = styled.div`
   flex: 1;
   background: #1e1e1e;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 `;
 
 const EditorHeader = styled.div`

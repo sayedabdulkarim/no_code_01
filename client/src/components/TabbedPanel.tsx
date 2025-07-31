@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import styled from '@emotion/styled';
-import TerminalWithHeader from './TerminalWithHeader';
-import Preview from './Preview';
-import Editor from './Editor';
-import { CommandSuggestion } from '../types/terminal';
+import styled from "@emotion/styled";
+import React, { useState } from "react";
+import { CommandSuggestion } from "../types/terminal";
+import Editor from "./Editor";
+import Preview from "./Preview";
+import TerminalWithHeader from "./TerminalWithHeader";
 
 interface TabbedPanelProps {
   // Terminal props
@@ -18,43 +18,47 @@ interface TabbedPanelProps {
   onSocketReady?: (socketId: string) => void;
   socketId: string | null;
   loading: boolean;
-  
+
   // Preview props
   projectUrl?: string;
   projectName?: string;
 }
 
 const TabbedPanel: React.FC<TabbedPanelProps> = (props) => {
-  const [activeTab, setActiveTab] = useState<'terminal' | 'preview' | 'editor'>('terminal');
+  const [activeTab, setActiveTab] = useState<"terminal" | "preview" | "editor">(
+    "terminal"
+  );
+
+  console.log("TabbedPanel render:", { activeTab, props });
 
   return (
     <Container>
       <TabHeader>
-        <Tab 
-          active={activeTab === 'terminal'} 
-          onClick={() => setActiveTab('terminal')}
+        <Tab
+          active={activeTab === "terminal"}
+          onClick={() => setActiveTab("terminal")}
         >
           <TabIcon>💻</TabIcon>
           Terminal
         </Tab>
-        <Tab 
-          active={activeTab === 'preview'} 
-          onClick={() => setActiveTab('preview')}
+        <Tab
+          active={activeTab === "preview"}
+          onClick={() => setActiveTab("preview")}
         >
           <TabIcon>🌐</TabIcon>
           Preview
         </Tab>
-        <Tab 
-          active={activeTab === 'editor'} 
-          onClick={() => setActiveTab('editor')}
+        <Tab
+          active={activeTab === "editor"}
+          onClick={() => setActiveTab("editor")}
         >
           <TabIcon>📝</TabIcon>
           Editor
         </Tab>
       </TabHeader>
-      
+
       <TabContent>
-        <TabPanel show={activeTab === 'terminal'}>
+        <TabPanel show={activeTab === "terminal"}>
           <TerminalWithHeader
             addErrorMessage={props.addErrorMessage}
             addMessage={props.addMessage}
@@ -65,16 +69,14 @@ const TabbedPanel: React.FC<TabbedPanelProps> = (props) => {
             loading={props.loading}
           />
         </TabPanel>
-        <TabPanel show={activeTab === 'preview'}>
-          <Preview 
+        <TabPanel show={activeTab === "preview"}>
+          <Preview
             projectUrl={props.projectUrl}
             projectName={props.projectName}
           />
         </TabPanel>
-        <TabPanel show={activeTab === 'editor'}>
-          <Editor 
-            projectName={props.projectName}
-          />
+        <TabPanel show={activeTab === "editor"}>
+          <Editor projectName={props.projectName} />
         </TabPanel>
       </TabContent>
     </Container>
@@ -89,27 +91,30 @@ const Container = styled.div`
 
 const TabHeader = styled.div`
   display: flex;
-  background: ${props => props.theme.colors.surface};
-  border-bottom: 2px solid ${props => props.theme.colors.border};
+  background: ${(props) => props.theme.colors.surface};
+  border-bottom: 2px solid ${(props) => props.theme.colors.border};
 `;
 
 const Tab = styled.button<{ active: boolean }>`
   flex: 1;
-  padding: ${props => props.theme.spacing.md};
-  background: ${props => props.active ? props.theme.colors.background : 'transparent'};
-  color: ${props => props.active ? props.theme.colors.primary : props.theme.colors.text};
+  padding: ${(props) => props.theme.spacing.md};
+  background: ${(props) =>
+    props.active ? props.theme.colors.background : "transparent"};
+  color: ${(props) =>
+    props.active ? props.theme.colors.primary : props.theme.colors.text};
   border: none;
-  border-bottom: 2px solid ${props => props.active ? props.theme.colors.primary : 'transparent'};
+  border-bottom: 2px solid
+    ${(props) => (props.active ? props.theme.colors.primary : "transparent")};
   cursor: pointer;
-  font-weight: ${props => props.active ? '600' : 'normal'};
+  font-weight: ${(props) => (props.active ? "600" : "normal")};
   transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: ${props => props.theme.spacing.sm};
+  gap: ${(props) => props.theme.spacing.sm};
 
   &:hover {
-    background: ${props => props.theme.colors.background};
+    background: ${(props) => props.theme.colors.background};
   }
 `;
 
@@ -124,13 +129,15 @@ const TabContent = styled.div`
 `;
 
 const TabPanel = styled.div<{ show: boolean }>`
-  position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  display: ${props => props.show ? 'block' : 'none'};
+  display: ${(props) => (props.show ? "flex" : "none")};
+  flex-direction: column;
   height: 100%;
+  width: 100%;
+  overflow: hidden;
 `;
 
 export default TabbedPanel;
