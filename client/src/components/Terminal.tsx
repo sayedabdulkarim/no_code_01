@@ -1021,6 +1021,13 @@ const Terminal: React.FC<TerminalProps> = ({
         terminalInstance.current?.write(
           "\r\n\x1b[32m> Connected to server.\x1b[0m\r\n"
         );
+        
+        // Fix nvm PREFIX issue
+        if (socketRef.current) {
+          socketRef.current.emit("input", "unset PREFIX\r");
+          console.log("Unset PREFIX to fix nvm compatibility");
+        }
+        
         reconnectAttemptsRef.current = 0; // Reset reconnection attempts on successful connection
       });
 

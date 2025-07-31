@@ -1,5 +1,21 @@
 const nextConfig = {
-  /* config options here */
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN'
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'self' http://localhost:3001 http://localhost:3000"
+          }
+        ],
+      },
+    ]
+  },
 };
 
 module.exports = nextConfig;

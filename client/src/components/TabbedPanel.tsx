@@ -71,6 +71,7 @@ const TabbedPanel: React.FC<TabbedPanelProps> = (props) => {
         </TabPanel>
         <TabPanel show={activeTab === "preview"}>
           <Preview
+            key={`preview-${activeTab === "preview" ? "active" : "inactive"}`}
             projectUrl={props.projectUrl}
             projectName={props.projectName}
           />

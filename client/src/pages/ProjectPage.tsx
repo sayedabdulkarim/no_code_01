@@ -40,8 +40,10 @@ interface PRDResponse {
 }
 
 interface StartProjectResponse {
-  port: number;
-  url: string;
+  message?: string;
+  port?: number;
+  url?: string;
+  projectName?: string;
 }
 
 const ProjectPage: React.FC = () => {
@@ -102,6 +104,7 @@ const ProjectPage: React.FC = () => {
   const startProject = useCallback(async () => {
     if (!projectId || isNewProject) return;
 
+    console.log('Starting project:', projectId, 'with socketId:', socketId);
     setLoading(true);
     try {
       // Get project path from the backend
@@ -116,11 +119,13 @@ const ProjectPage: React.FC = () => {
         throw new Error("Project not found");
       }
 
+      console.log('Calling /api/run-project with:', { projectName: projectId, socketId });
       const response = await axios.post<StartProjectResponse>(
-        "http://localhost:5001/api/start-project",
-        { projectPath: project.path, socketId }
+        "http://localhost:5001/api/run-project",
+        { projectName: projectId, socketId }
       );
 
+      console.log('Run project response:', response.data);
       if (response.data.url) {
         setProjectUrl(response.data.url);
         setIsProjectRunning(true);
@@ -150,20 +155,23 @@ const ProjectPage: React.FC = () => {
         setLoading(false);
       }
     }
-  }, [projectId, isNewProject, socketId]);
+  }, [projectId, isNewProject, socketId, loading]);
 
   // Fetch project status for existing projects
   const fetchProjectStatus = useCallback(
     async (projectName: string, showMessage = true) => {
       try {
+        console.log('Fetching project status for:', projectName);
         const response = await axios.get(
           "http://localhost:5001/api/running-projects"
         );
+        console.log('Running projects:', response.data.projects);
         const runningProject = response.data.projects.find(
           (p: any) => p.name === projectName
         );
 
         if (runningProject) {
+          console.log('Project is running:', runningProject);
           const wasRunning = isProjectRunning;
           setProjectUrl(runningProject.url);
           setIsProjectRunning(true);
@@ -186,6 +194,7 @@ const ProjectPage: React.FC = () => {
           }
           return true; // Project is running
         } else {
+          console.log('Project is not running');
           const wasRunning = isProjectRunning;
           setIsProjectRunning(false);
           setProjectUrl(undefined);
@@ -263,8 +272,15 @@ const ProjectPage: React.FC = () => {
               category: "success",
             },
           ]);
-          // Fetch project status
-          fetchProjectStatus(projectId);
+          // Fetch project status first
+          fetchProjectStatus(projectId).then((isRunning) => {
+            // If project is not running, automatically start it
+            if (!isRunning && socketId) {
+              setTimeout(() => {
+                startProject();
+              }, 1000);
+            }
+          });
         }
         setIsInitializing(false);
       });
@@ -279,8 +295,18 @@ const ProjectPage: React.FC = () => {
     fetchProjectStatus,
   ]);
 
-  // Auto-start project when socket is ready - removed this as it causes issues
-  // The periodic check will handle starting if needed
+  // Auto-start project when socket becomes ready
+  useEffect(() => {
+    if (!isNewProject && projectId && socketId && !isProjectRunning && !loading) {
+      // Check if project exists and is not running, then start it
+      fetchProjectStatus(projectId, false).then((isRunning) => {
+        if (!isRunning) {
+          console.log('Auto-starting project as socket is ready and project is not running');
+          startProject();
+        }
+      });
+    }
+  }, [socketId, projectId, isNewProject]);
 
   // Periodically check project status for existing projects
   useEffect(() => {

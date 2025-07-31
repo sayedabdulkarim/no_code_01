@@ -40,7 +40,7 @@ router.post("/api/stop-project", (req, res) => {
 // Start a project (useful for restarting)
 router.post("/api/start-project", async (req, res) => {
   try {
-    const { projectPath, socketId } = req.body;
+    const { projectPath, projectName, socketId } = req.body;
     
     if (!projectPath) {
       return res.status(400).json({ error: "Project path is required" });
@@ -50,7 +50,7 @@ router.post("/api/start-project", async (req, res) => {
     const io = req.app.get('io');
     const socket = socketId && io ? io.sockets.sockets.get(socketId) : null;
     
-    const projectInfo = await projectManager.startProject(projectPath, socket);
+    const projectInfo = await projectManager.startProject(projectPath, projectName, socket);
     
     res.json({
       message: "Project started successfully",
@@ -78,7 +78,7 @@ router.post("/api/run-project", async (req, res) => {
     const io = req.app.get('io');
     const socket = socketId && io ? io.sockets.sockets.get(socketId) : null;
     
-    const projectInfo = await projectManager.startProject(projectPath, socket);
+    const projectInfo = await projectManager.startProject(projectPath, projectName, socket);
     
     res.json({
       message: "Project started successfully",

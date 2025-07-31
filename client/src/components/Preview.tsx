@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
 
 interface PreviewProps {
@@ -7,6 +7,20 @@ interface PreviewProps {
 }
 
 const Preview: React.FC<PreviewProps> = ({ projectUrl, projectName }) => {
+  const [iframeError, setIframeError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (projectUrl) {
+      setIframeError(false);
+      setIsLoading(true);
+      // Force reload the iframe when component mounts or projectUrl changes
+      const iframe = document.querySelector('iframe') as HTMLIFrameElement;
+      if (iframe && iframe.src !== projectUrl) {
+        iframe.src = projectUrl;
+      }
+    }
+  }, [projectUrl]);
   if (!projectUrl) {
     return (
       <Container>
@@ -15,8 +29,8 @@ const Preview: React.FC<PreviewProps> = ({ projectUrl, projectName }) => {
           <EmptyTitle>No Preview Available</EmptyTitle>
           <EmptyText>
             {projectName 
-              ? `Select a project and click "Run Project" to see the preview`
-              : `Select a project from "Your Projects" to get started`
+              ? `Starting your project, please wait...`
+              : `Select a project from the homepage to get started`
             }
           </EmptyText>
         </EmptyState>
@@ -24,20 +38,68 @@ const Preview: React.FC<PreviewProps> = ({ projectUrl, projectName }) => {
     );
   }
 
+  const handleIframeLoad = () => {
+    setIsLoading(false);
+  };
+
+  const handleIframeError = () => {
+    setIframeError(true);
+    setIsLoading(false);
+  };
+
   return (
     <Container>
       <PreviewHeader>
         <PreviewUrl>{projectUrl}</PreviewUrl>
-        <RefreshButton onClick={() => window.location.reload()}>
+        <RefreshButton onClick={() => {
+          const iframe = document.querySelector('iframe') as HTMLIFrameElement;
+          if (iframe) {
+            iframe.src = iframe.src;
+          }
+        }}>
           🔄 Refresh
         </RefreshButton>
       </PreviewHeader>
       <IframeContainer>
-        <PreviewIframe
-          src={projectUrl}
-          title={`Preview of ${projectName}`}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        />
+        {isLoading && (
+          <LoadingOverlay>
+            <LoadingSpinner>⟳</LoadingSpinner>
+            <LoadingText>Loading preview...</LoadingText>
+          </LoadingOverlay>
+        )}
+        {iframeError ? (
+          <ErrorState>
+            <ErrorIcon>⚠️</ErrorIcon>
+            <ErrorTitle>Preview Connection Issue</ErrorTitle>
+            <ErrorText>
+              The preview couldn't connect to {projectUrl}
+            </ErrorText>
+            <ErrorActions>
+              <ActionButton 
+                href={projectUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+              >
+                Open in New Tab →
+              </ActionButton>
+              <SecondaryButton onClick={() => {
+                setIframeError(false);
+                setIsLoading(true);
+              }}>
+                Try Again
+              </SecondaryButton>
+            </ErrorActions>
+          </ErrorState>
+        ) : (
+          <PreviewIframe
+            src={projectUrl}
+            title={`Preview of ${projectName}`}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-modals"
+            allow="accelerometer; camera; encrypted-media; fullscreen; gyroscope; magnetometer; microphone; midi; payment; usb; xr-spatial-tracking"
+            onLoad={handleIframeLoad}
+            onError={handleIframeError}
+          />
+        )}
       </IframeContainer>
     </Container>
   );
@@ -122,6 +184,100 @@ const PreviewIframe = styled.iframe`
   width: 100%;
   height: 100%;
   border: none;
+`;
+
+const LoadingOverlay = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: ${props => props.theme.colors.background};
+  z-index: 10;
+`;
+
+const LoadingSpinner = styled.div`
+  font-size: 48px;
+  animation: spin 1s linear infinite;
+  
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+`;
+
+const LoadingText = styled.p`
+  color: ${props => props.theme.colors.text};
+  margin-top: ${props => props.theme.spacing.md};
+`;
+
+const ErrorState = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: ${props => props.theme.colors.background};
+  padding: ${props => props.theme.spacing.lg};
+`;
+
+const ErrorIcon = styled.div`
+  font-size: 48px;
+  margin-bottom: ${props => props.theme.spacing.md};
+`;
+
+const ErrorTitle = styled.h3`
+  color: ${props => props.theme.colors.text};
+  margin: 0 0 ${props => props.theme.spacing.sm} 0;
+`;
+
+const ErrorText = styled.p`
+  color: ${props => props.theme.colors.text};
+  opacity: 0.7;
+  margin: 0 0 ${props => props.theme.spacing.lg} 0;
+  text-align: center;
+`;
+
+const ErrorActions = styled.div`
+  display: flex;
+  gap: ${props => props.theme.spacing.md};
+`;
+
+const ActionButton = styled.a`
+  padding: ${props => props.theme.spacing.sm} ${props => props.theme.spacing.lg};
+  background: ${props => props.theme.colors.primary};
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.8;
+  }
+`;
+
+const SecondaryButton = styled.button`
+  padding: ${props => props.theme.spacing.sm} ${props => props.theme.spacing.lg};
+  background: transparent;
+  color: ${props => props.theme.colors.primary};
+  border: 1px solid ${props => props.theme.colors.primary};
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.8;
+  }
 `;
 
 export default Preview;

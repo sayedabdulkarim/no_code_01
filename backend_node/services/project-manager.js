@@ -12,11 +12,21 @@ class ProjectManager {
   /**
    * Start a Next.js project
    * @param {string} projectPath - Path to the project
+   * @param {string} projectName - Name of the project (optional)
    * @param {Socket} socket - Socket connection for terminal output
-   * @returns {Promise<{port: number, url: string}>}
+   * @returns {Promise<{port: number, url: string, projectName: string}>}
    */
-  async startProject(projectPath, socket) {
-    const projectName = path.basename(projectPath);
+  async startProject(projectPath, projectName, socket) {
+    // If projectName is actually a socket (backward compatibility)
+    if (typeof projectName === 'object' && projectName !== null && !socket) {
+      socket = projectName;
+      projectName = null;
+    }
+    
+    // If no projectName provided, derive from path
+    if (!projectName) {
+      projectName = path.basename(projectPath);
+    }
     
     // Check if project is already running
     if (this.runningProjects.has(projectName)) {
@@ -123,7 +133,7 @@ class ProjectManager {
         socket.emit('output', `\x1b[1;36m> Access your project at: ${url}\x1b[0m\n\n`);
       }
 
-      return { port, url };
+      return { port, url, projectName };
     } catch (error) {
       console.error('Error starting project:', error);
       if (socket) {
@@ -171,6 +181,14 @@ class ProjectManager {
       });
     }
     return projects;
+  }
+
+  /**
+   * Check if a project is running
+   * @param {string} projectName - Name of the project
+   */
+  isProjectRunning(projectName) {
+    return this.runningProjects.has(projectName);
   }
 
   /**
