@@ -111,6 +111,9 @@ const Content = styled.div`
 const InputArea = styled.div`
   background: ${(props) => props.theme.colors.surface};
   border-top: 1px solid ${(props) => props.theme.colors.border};
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
 `;
 
 const InputForm = styled.form`

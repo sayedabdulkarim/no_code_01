@@ -14,17 +14,28 @@ export const PRDPanel: React.FC<PRDPanelProps> = ({
   onApprove,
   onReject,
 }) => (
-  <Container>
-    <Title>Generated Requirements</Title>
-    <Content>{prd}</Content>
-    <Actions>
-      <ApproveButton onClick={onApprove} disabled={loading}>
-        {loading ? "Generating..." : "Approve & Generate Code"}
-      </ApproveButton>
-      <RejectButton onClick={onReject}>Reject & Start Over</RejectButton>
-    </Actions>
-  </Container>
+  <Wrapper>
+    <Container>
+      <Title>Generated Requirements</Title>
+      <Content>{prd}</Content>
+      <Actions>
+        <ApproveButton onClick={onApprove} disabled={loading}>
+          {loading ? "Generating..." : "Approve & Generate Code"}
+        </ApproveButton>
+        <RejectButton onClick={onReject}>Reject & Start Over</RejectButton>
+      </Actions>
+    </Container>
+  </Wrapper>
 );
+
+const Wrapper = styled.div`
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: ${(props) => props.theme.spacing.lg};
+`;
 
 const Container = styled.div`
   background: ${(props) => props.theme.colors.surface};

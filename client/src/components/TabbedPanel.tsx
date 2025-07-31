@@ -129,10 +129,6 @@ const TabContent = styled.div`
 `;
 
 const TabPanel = styled.div<{ show: boolean }>`
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
   display: ${(props) => (props.show ? "flex" : "none")};
   flex-direction: column;
   height: 100%;
