@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useRef, useCallback } from 'react';
 import type { HexColor } from '../../types/color';
 import { hsvToRgb, getColorAtPosition } from '../../utils/colorUtils';

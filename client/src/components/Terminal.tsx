@@ -1106,6 +1106,7 @@ const Terminal: React.FC<TerminalProps> = ({
         fontSize: 14,
         scrollback: 1000,
         allowTransparency: true,
+        convertEol: true,
       });
 
       terminalInstance.current = term;
@@ -1219,49 +1220,9 @@ const Terminal: React.FC<TerminalProps> = ({
     if (socketRef.current) {
       socketRef.current.on("output", (data: string) => {
         if (terminalInstance.current) {
-          // Add special formatting for common status messages
-          let processedData = data;
-
-          // Format initialization messages
-          if (data.includes("Starting project initialization")) {
-            processedData = `\x1b[1;34m${data}\x1b[0m`;
-          }
-          // Format success messages
-          else if (
-            data.includes("success") ||
-            data.includes("completed successfully") ||
-            data.includes("Saved lockfile")
-          ) {
-            processedData = `\x1b[1;32m${data}\x1b[0m`;
-          }
-          // Format error messages
-          else if (
-            data.toLowerCase().includes("error") ||
-            data.toLowerCase().includes("failed")
-          ) {
-            processedData = `\x1b[1;31m${data}\x1b[0m`;
-          }
-          // Format warning messages
-          else if (
-            data.toLowerCase().includes("warning") ||
-            data.toLowerCase().includes("note:") ||
-            data.includes("info")
-          ) {
-            processedData = `\x1b[1;33m${data}\x1b[0m`;
-          }
-          // Format installation steps
-          else if (
-            data.includes("Installing") ||
-            data.includes("Resolving") ||
-            data.includes("Fetching") ||
-            data.includes("Linking") ||
-            data.includes("Building")
-          ) {
-            processedData = `\x1b[1;36m${data}\x1b[0m`;
-          }
-
-          // Write the processed data to the terminal
-          terminalInstance.current.write(processedData);
+          // Write the data directly to the terminal without processing
+          // The PTY process will send proper ANSI escape sequences
+          terminalInstance.current.write(data);
 
           // Process error detection in an optimized way
           detectAndHandleError(data);

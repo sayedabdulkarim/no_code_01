@@ -167,11 +167,17 @@ io.on("connection", (socket) => {
 
   // Spawn a shell process
   const ptyProcess = pty.spawn(shell, [], {
-    name: "xterm-color",
+    name: "xterm-256color",
     cols: 80,
     rows: 24,
     cwd: process.env.HOME,
-    env: process.env,
+    env: {
+      ...process.env,
+      TERM: 'xterm-256color',
+      COLORTERM: 'truecolor',
+      LANG: process.env.LANG || 'en_US.UTF-8',
+      LC_ALL: process.env.LC_ALL || 'en_US.UTF-8'
+    },
   });
 
   // Handle terminal input from client
