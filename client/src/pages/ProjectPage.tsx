@@ -352,8 +352,8 @@ const ProjectPage: React.FC = () => {
         ]);
 
         setPRD(prdResult.data.prd);
-      } else {
-        // Handle updates for existing project
+      } else if (!isNewProject && projectId) {
+        // Handle updates for existing project only
         setMessages((prev) => [
           ...prev,
           {
@@ -384,6 +384,17 @@ const ProjectPage: React.FC = () => {
             },
           ]);
         }
+      } else if (isNewProject && prd) {
+        // For new projects that already have PRD, do nothing on subsequent messages
+        // This prevents calling update API before project is created
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: "agent",
+            content: "Please approve the PRD to create your project.",
+            category: "analysis",
+          },
+        ]);
       }
     } catch (err) {
       console.error("Error:", err);
@@ -498,41 +509,71 @@ const ProjectPage: React.FC = () => {
       // Hide PRD panel and show chat
       setPRD(null);
 
-      // Now generate the code for the project
+      // Now generate the code for the project using task-based approach
       setMessages((prev) => [
         ...prev,
         {
           type: "agent",
-          content: "Starting code generation based on the PRD...",
+          content: "Enhancing project with AI-generated content...",
+          category: "analysis",
+        },
+        {
+          type: "agent",
+          content: "Using task-based code generation for better results...",
           category: "analysis",
         },
       ]);
 
-      // Call generate-v2 endpoint to generate the code
-      const generateResult = await axios.post(
-        "http://localhost:5001/api/generate-v2",
+      // Call update-project-v2 endpoint to generate the code
+      // Get the PRD from messages (it was already generated and approved)
+      const prdMessage = messages.find(m => m.category === "prd");
+      const prdContent = prdMessage?.content || prd || "";
+      
+      const updateResult = await axios.post(
+        "http://localhost:5001/api/update-project-v2",
         {
-          requirement:
-            requirement ||
-            initialRequirement ||
-            messages.find((m) => m.type === "user")?.content,
+          projectName: projectName,
+          requirements: prdContent,
           socketId,
         }
       );
 
-      if (generateResult.data.success) {
+      if (updateResult.data.success) {
         setMessages((prev) => [
           ...prev,
           {
             type: "agent",
-            content: "✅ Project generated successfully! Your app is ready.",
+            content: `✅ ${updateResult.data.message || "Project generated successfully! Your app is ready."}`,
             category: "success",
           },
         ]);
 
+        // Show task summary if available
+        if (updateResult.data.summary) {
+          const summary = updateResult.data.summary;
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "agent",
+              content: `📊 Summary: ${summary.successful}/${summary.total} tasks completed successfully`,
+              category: "analysis",
+            },
+          ]);
+          if (summary.failed > 0) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                type: "agent",
+                content: `⚠️ ${summary.failed} tasks failed - check terminal for details`,
+                category: "error",
+              },
+            ]);
+          }
+        }
+
         // Update project URL if provided
-        if (generateResult.data.url) {
-          setProjectUrl(generateResult.data.url);
+        if (updateResult.data.url) {
+          setProjectUrl(updateResult.data.url);
         }
       }
 
