@@ -1,139 +1,87 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import type { HexColor } from '../../types/color';
-import { hsvToRgb, getColorAtPosition } from '../../utils/colorUtils';
 
 interface ColorSpectrumProps {
   onColorSelect: (color: HexColor) => void;
-  className?: string;
 }
 
-const ColorSpectrum: React.FC<ColorSpectrumProps> = ({
-  onColorSelect,
-  className = ''
-}) => {
+export default function ColorSpectrum({ onColorSelect }: ColorSpectrumProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const isDraggingRef = useRef(false);
 
-  const drawSpectrum = useCallback((canvas: HTMLCanvasElement) => {
+  const drawSpectrum = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+    gradient.addColorStop(0, '#FF0000');
+    gradient.addColorStop(0.17, '#FF00FF');
+    gradient.addColorStop(0.33, '#0000FF');
+    gradient.addColorStop(0.5, '#00FFFF');
+    gradient.addColorStop(0.67, '#00FF00');
+    gradient.addColorStop(0.83, '#FFFF00');
+    gradient.addColorStop(1, '#FF0000');
 
-    // Create gradient
-    for (let x = 0; x < width; x++) {
-      for (let y = 0; y < height; y++) {
-        const hue = x / width;
-        const saturation = 1 - (y / height);
-        const value = 1.0;
-        
-        const { r, g, b } = hsvToRgb(hue, saturation, value);
-        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-        ctx.fillRect(x, y, 1, 1);
-      }
-    }
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Add black and white gradients
+    const bwGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    bwGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    bwGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0)');
+    bwGradient.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+    bwGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
+
+    ctx.fillStyle = bwGradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }, []);
 
-  const handleColorSelection = useCallback((event: MouseEvent | TouchEvent) => {
+  useEffect(() => {
+    drawSpectrum();
+  }, [drawSpectrum]);
+
+  const getColorFromPosition = (x: number, y: number): HexColor => {
+    const canvas = canvasRef.current;
+    if (!canvas) return '#000000';
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return '#000000';
+
+    const pixel = ctx.getImageData(x, y, 1, 1).data;
+    const hex = '#' + (
+      (1 << 24) + 
+      (pixel[0] << 16) + 
+      (pixel[1] << 8) + 
+      pixel[2]
+    ).toString(16).slice(1).toUpperCase();
+
+    return hex as HexColor;
+  };
+
+  const handleColorPick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = ('touches' in event) 
-      ? event.touches[0].clientX - rect.left
-      : event.clientX - rect.left;
-    const y = ('touches' in event)
-      ? event.touches[0].clientY - rect.top
-      : event.clientY - rect.top;
-
-    // Ensure coordinates are within bounds
-    const boundedX = Math.max(0, Math.min(canvas.width, x));
-    const boundedY = Math.max(0, Math.min(canvas.height, y));
-
-    const selectedColor = getColorAtPosition(canvas, boundedX, boundedY);
-    onColorSelect(selectedColor as HexColor);
-  }, [onColorSelect]);
-
-  const handleResize = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
-    drawSpectrum(canvas);
-  }, [drawSpectrum]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    // Set canvas size
-    handleResize();
-
-    // Event handlers
-    const handleMouseDown = (e: MouseEvent) => {
-      isDraggingRef.current = true;
-      handleColorSelection(e);
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (isDraggingRef.current) {
-        handleColorSelection(e);
-      }
-    };
-
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
-    };
-
-    const handleTouchStart = (e: TouchEvent) => {
-      isDraggingRef.current = true;
-      handleColorSelection(e);
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (isDraggingRef.current) {
-        e.preventDefault();
-        handleColorSelection(e);
-      }
-    };
-
-    const handleTouchEnd = () => {
-      isDraggingRef.current = false;
-    };
-
-    // Add event listeners
-    canvas.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('touchstart', handleTouchStart);
-    window.addEventListener('touchmove', handleTouchMove, { passive: false });
-    window.addEventListener('touchend', handleTouchEnd);
-    window.addEventListener('resize', handleResize);
-
-    // Cleanup
-    return () => {
-      canvas.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      canvas.removeEventListener('touchstart', handleTouchStart);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [drawSpectrum, handleColorSelection, handleResize]);
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    const color = getColorFromPosition(x, y);
+    onColorSelect(color);
+  };
 
   return (
     <canvas
       ref={canvasRef}
-      className={`w-full h-40 rounded-lg cursor-crosshair ${className}`}
-      role="img"
-      aria-label="Color spectrum selector"
+      width="300"
+      height="200"
+      onClick={handleColorPick}
+      className="w-full cursor-pointer rounded-lg shadow-sm"
+      aria-label="Color spectrum picker"
     />
   );
-};
-
-export default ColorSpectrum;
+}

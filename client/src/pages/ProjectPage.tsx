@@ -65,6 +65,10 @@ const ProjectPage: React.FC = () => {
   const [requirement, setRequirement] = useState<string>("");
   const [isProjectRunning, setIsProjectRunning] = useState(false);
   const socketIdRef = useRef<string | null>(null);
+  
+  // Tab control state
+  const [activeTab, setActiveTab] = useState<"terminal" | "preview" | "editor">("terminal");
+  const [isBuildComplete, setIsBuildComplete] = useState(true); // Default to true for existing projects
 
   // Check if this is a new project
   const isNewProject = projectId === "new";
@@ -99,6 +103,11 @@ const ProjectPage: React.FC = () => {
     setSocketId(id);
     socketIdRef.current = id;
   }, []);
+  
+  
+  const handleTabChange = useCallback((tab: "terminal" | "preview" | "editor") => {
+    setActiveTab(tab);
+  }, []);
 
   // Start project function
   const startProject = useCallback(async () => {
@@ -106,6 +115,8 @@ const ProjectPage: React.FC = () => {
 
     console.log('Starting project:', projectId, 'with socketId:', socketId);
     setLoading(true);
+    setIsBuildComplete(false); // Disable tabs during build
+    setActiveTab("terminal"); // Switch to terminal tab
     try {
       // Get project path from the backend
       const projectsResponse = await axios.get(
@@ -319,6 +330,74 @@ const ProjectPage: React.FC = () => {
     }
   }, [isNewProject, projectId, fetchProjectStatus]);
 
+  // Listen for project status events on the existing socket connection
+  useEffect(() => {
+    // We need to get the socket instance from the Terminal component
+    // The Terminal component already has a socket connection with the socketId
+    // We'll listen for events using a global event system
+    
+    const handleProjectStatus = (event: CustomEvent) => {
+      const data = event.detail;
+      console.log('Received project:status event:', data);
+      
+      // Only handle events for our project
+      if (data.projectName === projectId) {
+        // Handle different stages
+        switch (data.stage) {
+          case 'server_starting':
+            console.log('Server starting...');
+            setIsBuildComplete(false);
+            break;
+            
+          case 'server_ready':
+            console.log('Server ready! Enabling tabs.');
+            setIsBuildComplete(true);
+            if (data.url) {
+              setProjectUrl(data.url);
+            }
+            break;
+            
+          case 'server_stopped':
+            console.log('Server stopped');
+            setIsProjectRunning(false);
+            break;
+            
+          case 'server_error':
+            console.log('Server error:', data.error);
+            setIsBuildComplete(true); // Enable tabs on error so user can investigate
+            break;
+            
+          case 'initializing':
+          case 'code_generation_starting':
+          case 'analyzing_requirements':
+          case 'checking_build':
+            console.log(`Build stage: ${data.stage}`);
+            setIsBuildComplete(false);
+            break;
+            
+          case 'initialized':
+          case 'code_generation_complete':
+            console.log('Code generation complete');
+            // Don't enable tabs yet - wait for server_ready
+            break;
+            
+          case 'code_generation_complete_with_errors':
+            console.log('Code generation complete with errors');
+            setIsBuildComplete(true); // Enable tabs so user can fix errors
+            break;
+        }
+      }
+    };
+
+    // Listen for custom events that will be dispatched from Terminal component
+    window.addEventListener('project:status', handleProjectStatus as EventListener);
+
+    // Clean up
+    return () => {
+      window.removeEventListener('project:status', handleProjectStatus as EventListener);
+    };
+  }, [projectId]);
+
   const handleSendMessage = async (message: string) => {
     // Don't set loading for existing projects - only for PRD generation
     if (isNewProject && !prd) {
@@ -363,6 +442,10 @@ const ProjectPage: React.FC = () => {
           },
         ]);
 
+        // Disable tabs and switch to terminal for update
+        setIsBuildComplete(false);
+        setActiveTab("terminal");
+        
         // Call update endpoint
         const updateResult = await axios.post(
           "http://localhost:5001/api/update-project-v2",
@@ -473,6 +556,8 @@ const ProjectPage: React.FC = () => {
     }
 
     setLoading(true);
+    setIsBuildComplete(false); // Disable tabs during project creation
+    setActiveTab("terminal"); // Switch to terminal tab
 
     try {
       // Initialize the project with the approved PRD
@@ -528,6 +613,10 @@ const ProjectPage: React.FC = () => {
       // Get the PRD from messages (it was already generated and approved)
       const prdMessage = messages.find(m => m.category === "prd");
       const prdContent = prdMessage?.content || prd || "";
+      
+      // Ensure tabs are disabled for code generation
+      setIsBuildComplete(false);
+      setActiveTab("terminal");
       
       const updateResult = await axios.post(
         "http://localhost:5001/api/update-project-v2",
@@ -628,6 +717,9 @@ const ProjectPage: React.FC = () => {
           loading={loading}
           projectUrl={projectUrl}
           projectName={projectId === "new" ? undefined : projectId}
+          disabledTabs={isBuildComplete ? [] : ["preview", "editor"]}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
         />
       </RightPanel>
     </PageContainer>

@@ -65,6 +65,12 @@ class ProjectManager {
       
       if (socket) {
         socket.emit('output', `\n\x1b[1;34m> Starting development server on port ${port}...\x1b[0m\n`);
+        // Emit status event for project starting
+        socket.emit('project:status', {
+          projectName,
+          stage: 'server_starting',
+          message: 'Starting development server...'
+        });
       }
 
       // Start the Next.js development server
@@ -112,6 +118,13 @@ class ProjectManager {
         this.runningProjects.delete(projectName);
         if (socket) {
           socket.emit('output', `\n\x1b[1;33m> Development server stopped (exit code: ${code})\x1b[0m\n`);
+          // Emit status event for server stopped
+          socket.emit('project:status', {
+            projectName,
+            stage: 'server_stopped',
+            message: 'Development server stopped',
+            exitCode: code
+          });
         }
       });
 
@@ -131,6 +144,14 @@ class ProjectManager {
       if (socket) {
         socket.emit('output', `\n\x1b[1;32m✓ Development server started successfully!\x1b[0m\n`);
         socket.emit('output', `\x1b[1;36m> Access your project at: ${url}\x1b[0m\n\n`);
+        // Emit status event for server ready
+        socket.emit('project:status', {
+          projectName,
+          stage: 'server_ready',
+          message: 'Development server ready!',
+          url,
+          port
+        });
       }
 
       return { port, url, projectName };
@@ -138,6 +159,13 @@ class ProjectManager {
       console.error('Error starting project:', error);
       if (socket) {
         socket.emit('output', `\n\x1b[1;31m✗ Failed to start development server: ${error.message}\x1b[0m\n`);
+        // Emit status event for server error
+        socket.emit('project:status', {
+          projectName,
+          stage: 'server_error',
+          message: 'Failed to start development server',
+          error: error.message
+        });
       }
       throw error;
     }

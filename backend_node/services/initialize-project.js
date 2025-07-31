@@ -50,6 +50,12 @@ module.exports = (socketIo) => {
           "output",
           `\n> Starting project initialization...\n> ${commandString}\n\n`
         );
+        // Emit status event for project initialization
+        socket.emit('project:status', {
+          projectName,
+          stage: 'initializing',
+          message: 'Creating new Next.js project...'
+        });
       }
 
       // Use spawn to capture real-time output
@@ -191,6 +197,12 @@ module.exports = (socketIo) => {
           "output",
           `\n> Saved PRD to: ${prdPath}\n> Project initialization completed successfully!\n`
         );
+        // Emit status event for project initialized
+        socket.emit('project:status', {
+          projectName,
+          stage: 'initialized',
+          message: 'Project structure created successfully!'
+        });
       }
 
       // Start the development server directly (create-next-app already installed dependencies)

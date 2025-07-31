@@ -19,14 +19,14 @@ const TerminalContainer = styled.div`
   position: relative;
 
   .xterm {
-    height: 100%;
     padding: 8px;
+    height: 100%;
   }
-  
+
   .xterm-viewport {
     overflow-y: auto !important;
   }
-  
+
   .xterm-screen {
     height: 100% !important;
   }
@@ -1021,14 +1021,21 @@ const Terminal: React.FC<TerminalProps> = ({
         terminalInstance.current?.write(
           "\r\n\x1b[32m> Connected to server.\x1b[0m\r\n"
         );
-        
+
         // Fix nvm PREFIX issue
         if (socketRef.current) {
           socketRef.current.emit("input", "unset PREFIX\r");
           console.log("Unset PREFIX to fix nvm compatibility");
         }
-        
+
         reconnectAttemptsRef.current = 0; // Reset reconnection attempts on successful connection
+      });
+      
+      // Listen for project status events and dispatch them as custom events
+      socketRef.current.on('project:status', (data) => {
+        console.log('Terminal received project:status event:', data);
+        // Dispatch a custom event that ProjectPage can listen to
+        window.dispatchEvent(new CustomEvent('project:status', { detail: data }));
       });
 
       socketRef.current.on("connect_error", (err) => {
@@ -1393,6 +1400,7 @@ const Terminal: React.FC<TerminalProps> = ({
       // Cleanup socket connection
       if (socketRef.current) {
         try {
+          socketRef.current.off('project:status'); // Remove the listener
           socketRef.current.disconnect();
           socketRef.current = null;
           console.log("Socket disconnected");

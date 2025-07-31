@@ -22,35 +22,60 @@ interface TabbedPanelProps {
   // Preview props
   projectUrl?: string;
   projectName?: string;
+
+  // Tab control props
+  disabledTabs?: string[];
+  onTabChange?: (tab: "terminal" | "preview" | "editor") => void;
+  activeTab?: "terminal" | "preview" | "editor";
 }
 
 const TabbedPanel: React.FC<TabbedPanelProps> = (props) => {
-  const [activeTab, setActiveTab] = useState<"terminal" | "preview" | "editor">(
-    "terminal"
-  );
+  const [localActiveTab, setLocalActiveTab] = useState<
+    "terminal" | "preview" | "editor"
+  >("terminal");
 
-  console.log("TabbedPanel render:", { activeTab, props });
+  // Use controlled state if provided, otherwise use local state
+  const activeTab = props.activeTab || localActiveTab;
+  const disabledTabs = props.disabledTabs || [];
+
+  const handleTabClick = (tab: "terminal" | "preview" | "editor") => {
+    // Don't allow clicking on disabled tabs
+    if (disabledTabs.includes(tab)) {
+      return;
+    }
+
+    if (props.onTabChange) {
+      props.onTabChange(tab);
+    } else {
+      setLocalActiveTab(tab);
+    }
+  };
+
+  console.log("TabbedPanel render:", { activeTab, disabledTabs, props });
 
   return (
     <Container>
       <TabHeader>
         <Tab
           active={activeTab === "terminal"}
-          onClick={() => setActiveTab("terminal")}
+          disabled={disabledTabs.includes("terminal")}
+          onClick={() => handleTabClick("terminal")}
         >
           <TabIcon>💻</TabIcon>
           Terminal
         </Tab>
         <Tab
           active={activeTab === "preview"}
-          onClick={() => setActiveTab("preview")}
+          disabled={disabledTabs.includes("preview")}
+          onClick={() => handleTabClick("preview")}
         >
           <TabIcon>🌐</TabIcon>
           Preview
         </Tab>
         <Tab
           active={activeTab === "editor"}
-          onClick={() => setActiveTab("editor")}
+          disabled={disabledTabs.includes("editor")}
+          onClick={() => handleTabClick("editor")}
         >
           <TabIcon>📝</TabIcon>
           Editor
@@ -96,26 +121,32 @@ const TabHeader = styled.div`
   border-bottom: 2px solid ${(props) => props.theme.colors.border};
 `;
 
-const Tab = styled.button<{ active: boolean }>`
+const Tab = styled.button<{ active: boolean; disabled?: boolean }>`
   flex: 1;
   padding: ${(props) => props.theme.spacing.md};
   background: ${(props) =>
     props.active ? props.theme.colors.background : "transparent"};
   color: ${(props) =>
-    props.active ? props.theme.colors.primary : props.theme.colors.text};
+    props.disabled
+      ? props.theme.colors.textSecondary
+      : props.active
+      ? props.theme.colors.primary
+      : props.theme.colors.text};
   border: none;
   border-bottom: 2px solid
     ${(props) => (props.active ? props.theme.colors.primary : "transparent")};
-  cursor: pointer;
+  cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
   font-weight: ${(props) => (props.active ? "600" : "normal")};
   transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: ${(props) => props.theme.spacing.sm};
+  opacity: ${(props) => (props.disabled ? 0.5 : 1)};
 
   &:hover {
-    background: ${(props) => props.theme.colors.background};
+    background: ${(props) =>
+      props.disabled ? "transparent" : props.theme.colors.background};
   }
 `;
 

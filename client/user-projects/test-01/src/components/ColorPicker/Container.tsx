@@ -35,7 +35,7 @@ export default function ColorPickerContainer() {
         {/* Color Preview */}
         <div className="relative">
           <div 
-            className="w-full h-40 rounded-lg border border-gray-200"
+            className="w-full h-40 rounded-lg border border-gray-200 transition-colors duration-200"
             style={{ backgroundColor: selectedColor.currentColor }}
             role="presentation"
             aria-label={`Selected color: ${selectedColor.currentColor}`}
@@ -43,18 +43,24 @@ export default function ColorPickerContainer() {
         </div>
 
         {/* Color Spectrum */}
-        <ColorSpectrum onColorSelect={handleColorSelect} />
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">Color Spectrum</label>
+          <ColorSpectrum onColorSelect={handleColorSelect} />
+        </div>
 
         {/* Preset Colors */}
-        <PresetColors 
-          onColorSelect={handleColorSelect}
-          selectedColor={selectedColor.currentColor}
-        />
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">Quick Colors</label>
+          <PresetColors 
+            onColorSelect={handleColorSelect}
+            selectedColor={selectedColor.currentColor}
+          />
+        </div>
 
         {/* Hex Code Display and Copy Button */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4 bg-gray-50 p-4 rounded-lg">
           <div className="flex-1">
-            <p className="text-sm text-gray-500">Hex Code:</p>
+            <p className="text-sm text-gray-500">Hex Code</p>
             <p className="text-lg font-mono font-semibold">{selectedColor.currentColor}</p>
           </div>
           <button

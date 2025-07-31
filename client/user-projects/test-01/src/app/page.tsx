@@ -1,4 +1,5 @@
 import ColorPickerContainer from "../components/ColorPicker/Container";
+import ColorDisplay from "../components/ColorDisplay";
 
 export default function Home() {
   return (
@@ -6,18 +7,19 @@ export default function Home() {
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-black mb-2">
-            Color Picker Tool ( COPYYY )
+          <h1 className="text-3xl font-bold text-red-600 mb-2">
+            Color Picker Tool
           </h1>
           <p className="text-gray-600">
             Select colors and get their hex codes instantly
           </p>
-          <p className="text-gray-600 mt-2">
-            A simple and intuitive tool for designers and developers to pick colors and copy their hex codes with a single click
-          </p>
-          <p className="text-gray-600 mt-4">
-            Use the color spectrum to find your perfect color, or choose from preset options. Click the copy button to save the hex code to your clipboard. Perfect for web design, branding, and development projects.
-          </p>
+        </div>
+
+        {/* Sample Colors Display */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+          <ColorDisplay hexColor="#FF0000" />
+          <ColorDisplay hexColor="#00FF00" />
+          <ColorDisplay hexColor="#0000FF" />
         </div>
 
         {/* Color Picker Component */}

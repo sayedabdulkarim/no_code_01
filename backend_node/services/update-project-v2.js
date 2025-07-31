@@ -78,6 +78,12 @@ router.post("/update-project-v2", async (req, res) => {
     // Notify start
     if (socket) {
       socket.emit('output', '\n\x1b[1;34m> Starting task-based code generation...\x1b[0m\n');
+      // Emit status event for code generation starting
+      socket.emit('project:status', {
+        projectName,
+        stage: 'code_generation_starting',
+        message: 'Starting code generation...'
+      });
     } else {
       console.log("No socket connection available for real-time updates");
     }
@@ -111,6 +117,12 @@ router.post("/update-project-v2", async (req, res) => {
       if (isUpdate) {
         socket.emit('output', '\x1b[33m> Detected UPDATE operation - will only modify necessary files\x1b[0m\n');
       }
+      // Emit status event for analyzing requirements
+      socket.emit('project:status', {
+        projectName,
+        stage: 'analyzing_requirements',
+        message: 'Analyzing requirements and creating tasks...'
+      });
     }
     
     let taskResult;
@@ -192,6 +204,12 @@ router.post("/update-project-v2", async (req, res) => {
     // Step 3: Run compilation check and auto-fix
     if (socket) {
       socket.emit('output', '\x1b[1;34m> Checking for compilation errors...\x1b[0m\n');
+      // Emit status event for compilation check
+      socket.emit('project:status', {
+        projectName,
+        stage: 'checking_build',
+        message: 'Checking for compilation errors...'
+      });
     }
     
     const compilationResult = await compilationChecker.checkAndFix(projectPath, socket);
@@ -216,11 +234,25 @@ router.post("/update-project-v2", async (req, res) => {
       
     if (llmValidationResult.success) {
       finalMessage += " and build verification passed";
+      if (socket) {
+        // Emit status event for code generation complete
+        socket.emit('project:status', {
+          projectName,
+          stage: 'code_generation_complete',
+          message: 'Code generation completed successfully!'
+        });
+      }
     } else {
       finalMessage += " but some build errors could not be resolved";
       if (socket) {
         socket.emit('output', '\n\x1b[31m✗ Some build errors could not be automatically fixed.\x1b[0m\n');
         socket.emit('output', 'Please check the terminal output for manual resolution.\n');
+        // Emit status event for code generation with errors
+        socket.emit('project:status', {
+          projectName,
+          stage: 'code_generation_complete_with_errors',
+          message: 'Code generation completed with some errors'
+        });
       }
     }
 
