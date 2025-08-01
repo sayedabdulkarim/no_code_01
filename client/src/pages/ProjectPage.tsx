@@ -66,6 +66,11 @@ const ProjectPage: React.FC = () => {
   const [isProjectRunning, setIsProjectRunning] = useState(false);
   const socketIdRef = useRef<string | null>(null);
   
+  // Flags to prevent duplicate operations
+  const [isStartingProject, setIsStartingProject] = useState(false);
+  const [hasShownWelcome, setHasShownWelcome] = useState(false);
+  const lastProjectStatusRef = useRef<boolean | null>(null);
+  
   // Tab control state
   const [activeTab, setActiveTab] = useState<"terminal" | "preview" | "editor">("terminal");
   const [isBuildComplete, setIsBuildComplete] = useState(true); // Default to true for existing projects
@@ -104,6 +109,29 @@ const ProjectPage: React.FC = () => {
     socketIdRef.current = id;
   }, []);
   
+  // Helper to add status message without duplicates
+  const addStatusMessage = useCallback((content: string, statusType: "processing" | "success" | "error" | "info") => {
+    setMessages((prev) => {
+      // Check if we already have this exact status message
+      const hasSimilarMessage = prev.some(msg => 
+        msg.type === "status" && 
+        msg.content === content && 
+        msg.statusType === statusType
+      );
+      if (!hasSimilarMessage) {
+        return [
+          ...prev,
+          {
+            type: "status",
+            content,
+            statusType,
+          },
+        ];
+      }
+      return prev;
+    });
+  }, []);
+  
   
   const handleTabChange = useCallback((tab: "terminal" | "preview" | "editor") => {
     setActiveTab(tab);
@@ -111,22 +139,32 @@ const ProjectPage: React.FC = () => {
 
   // Start project function
   const startProject = useCallback(async () => {
-    if (!projectId || isNewProject) return;
+    if (!projectId || isNewProject || isStartingProject) return;
 
     console.log('Starting project:', projectId, 'with socketId:', socketId);
+    setIsStartingProject(true);
     setLoading(true);
     setIsBuildComplete(false); // Disable tabs during build
     setActiveTab("terminal"); // Switch to terminal tab
     
-    // Add status message for starting project
-    setMessages((prev) => [
-      ...prev,
-      {
-        type: "status",
-        content: "Starting your project...",
-        statusType: "processing",
-      },
-    ]);
+    // Add status message for starting project only once
+    setMessages((prev) => {
+      // Check if we already have a "Starting" message
+      const hasStartingMessage = prev.some(msg => 
+        msg.content.includes("Starting") && msg.statusType === "processing"
+      );
+      if (!hasStartingMessage) {
+        return [
+          ...prev,
+          {
+            type: "status",
+            content: "Starting your project...",
+            statusType: "processing",
+          },
+        ];
+      }
+      return prev;
+    });
     
     try {
       // Get project path from the backend
@@ -176,8 +214,9 @@ const ProjectPage: React.FC = () => {
       if (loading) {
         setLoading(false);
       }
+      setIsStartingProject(false);
     }
-  }, [projectId, isNewProject, socketId, loading]);
+  }, [projectId, isNewProject, socketId, loading, isStartingProject]);
 
   // Fetch project status for existing projects
   const fetchProjectStatus = useCallback(
@@ -194,7 +233,8 @@ const ProjectPage: React.FC = () => {
 
         if (runningProject) {
           console.log('Project is running:', runningProject);
-          const wasRunning = isProjectRunning;
+          const wasRunning = lastProjectStatusRef.current;
+          lastProjectStatusRef.current = true;
           setProjectUrl(runningProject.url);
           setIsProjectRunning(true);
 
@@ -203,8 +243,8 @@ const ProjectPage: React.FC = () => {
             setLoading(false);
           }
 
-          // Only show message on initial load or status change
-          if (showMessage && !wasRunning) {
+          // Only show message on actual status change
+          if (showMessage && wasRunning !== true) {
             setMessages((prev) => [
               ...prev,
               {
@@ -217,18 +257,19 @@ const ProjectPage: React.FC = () => {
           return true; // Project is running
         } else {
           console.log('Project is not running');
-          const wasRunning = isProjectRunning;
+          const wasRunning = lastProjectStatusRef.current;
+          lastProjectStatusRef.current = false;
           setIsProjectRunning(false);
           setProjectUrl(undefined);
 
-          // Only show message on initial load or status change
-          if (showMessage && wasRunning !== false) {
+          // Only show message on actual status change from running to not running
+          if (showMessage && wasRunning === true) {
             setMessages((prev) => [
               ...prev,
               {
                 type: "agent",
-                content: "Starting your project...",
-                category: "analysis",
+                content: "Project stopped. You can restart it anytime.",
+                category: "info",
               },
             ]);
           }
@@ -286,7 +327,8 @@ const ProjectPage: React.FC = () => {
       // For existing projects
       setLoading(false); // Ensure loading is false for existing projects
       checkProjectExists(projectId).then((exists) => {
-        if (exists) {
+        if (exists && !hasShownWelcome) {
+          setHasShownWelcome(true);
           setMessages((prev) => [
             ...prev,
             {
@@ -295,10 +337,10 @@ const ProjectPage: React.FC = () => {
               category: "success",
             },
           ]);
-          // Fetch project status first
-          fetchProjectStatus(projectId).then((isRunning) => {
-            // If project is not running, automatically start it
-            if (!isRunning && socketId) {
+          // Fetch project status first, don't show messages on initial check
+          fetchProjectStatus(projectId, false).then((isRunning) => {
+            // If project is not running and socket is ready, start it
+            if (!isRunning && socketId && !isStartingProject) {
               setTimeout(() => {
                 startProject();
               }, 1000);
@@ -320,16 +362,16 @@ const ProjectPage: React.FC = () => {
 
   // Auto-start project when socket becomes ready
   useEffect(() => {
-    if (!isNewProject && projectId && socketId && !isProjectRunning && !loading) {
+    if (!isNewProject && projectId && socketId && !isProjectRunning && !loading && !isStartingProject) {
       // Check if project exists and is not running, then start it
       fetchProjectStatus(projectId, false).then((isRunning) => {
-        if (!isRunning) {
+        if (!isRunning && !isStartingProject) {
           console.log('Auto-starting project as socket is ready and project is not running');
           startProject();
         }
       });
     }
-  }, [socketId, projectId, isNewProject]);
+  }, [socketId, projectId, isNewProject, isStartingProject]);
 
   // Periodically check project status for existing projects
   useEffect(() => {
@@ -357,40 +399,19 @@ const ProjectPage: React.FC = () => {
         // Handle different stages with user-friendly status messages
         switch (data.stage) {
           case 'initializing':
-            setMessages((prev) => [
-              ...prev,
-              {
-                type: "status",
-                content: "Creating your new project...",
-                statusType: "processing",
-              },
-            ]);
+            addStatusMessage("Creating your new project...", "processing");
             setIsBuildComplete(false);
             break;
             
           case 'server_starting':
             console.log('Server starting...');
-            setMessages((prev) => [
-              ...prev,
-              {
-                type: "status",
-                content: "Starting development server...",
-                statusType: "processing",
-              },
-            ]);
+            addStatusMessage("Starting development server...", "processing");
             setIsBuildComplete(false);
             break;
             
           case 'server_ready':
             console.log('Server ready! Enabling tabs.');
-            setMessages((prev) => [
-              ...prev,
-              {
-                type: "status",
-                content: "Development server is ready!",
-                statusType: "success",
-              },
-            ]);
+            addStatusMessage("Development server is ready!", "success");
             setIsBuildComplete(true);
             if (data.url) {
               setProjectUrl(data.url);
@@ -424,14 +445,7 @@ const ProjectPage: React.FC = () => {
             break;
             
           case 'code_generation_starting':
-            setMessages((prev) => [
-              ...prev,
-              {
-                type: "status",
-                content: "Starting to generate your project code...",
-                statusType: "processing",
-              },
-            ]);
+            addStatusMessage("Starting to generate your project code...", "processing");
             setIsBuildComplete(false);
             break;
             
@@ -504,7 +518,7 @@ const ProjectPage: React.FC = () => {
     return () => {
       window.removeEventListener('project:status', handleProjectStatus as EventListener);
     };
-  }, [projectId]);
+  }, [projectId, addStatusMessage]);
 
   const handleSendMessage = async (message: string) => {
     // Don't set loading for existing projects - only for PRD generation
@@ -541,14 +555,7 @@ const ProjectPage: React.FC = () => {
         setPRD(prdResult.data.prd);
       } else if (!isNewProject && projectId) {
         // Handle updates for existing project only
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: "status",
-            content: "Processing your update request...",
-            statusType: "processing",
-          },
-        ]);
+        addStatusMessage("Processing your update request...", "processing");
 
         // Disable tabs and switch to terminal for update
         setIsBuildComplete(false);

@@ -6,7 +6,8 @@ export type MessageCategory =
   | "prd"
   | "error"
   | "success"
-  | "status";
+  | "status"
+  | "info";
 
 export interface Message {
   type: "user" | "agent" | "status";
