@@ -5,10 +5,13 @@ export type MessageCategory =
   | "feedback"
   | "prd"
   | "error"
-  | "success";
+  | "success"
+  | "status";
 
 export interface Message {
-  type: "user" | "agent";
+  type: "user" | "agent" | "status";
   content: string;
   category?: MessageCategory;
+  statusType?: "processing" | "success" | "error" | "info";
+  icon?: string;
 }

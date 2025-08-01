@@ -117,6 +117,17 @@ const ProjectPage: React.FC = () => {
     setLoading(true);
     setIsBuildComplete(false); // Disable tabs during build
     setActiveTab("terminal"); // Switch to terminal tab
+    
+    // Add status message for starting project
+    setMessages((prev) => [
+      ...prev,
+      {
+        type: "status",
+        content: "Starting your project...",
+        statusType: "processing",
+      },
+    ]);
+    
     try {
       // Get project path from the backend
       const projectsResponse = await axios.get(
@@ -276,7 +287,8 @@ const ProjectPage: React.FC = () => {
       setLoading(false); // Ensure loading is false for existing projects
       checkProjectExists(projectId).then((exists) => {
         if (exists) {
-          setMessages([
+          setMessages((prev) => [
+            ...prev,
             {
               type: "agent",
               content: `Welcome back to ${projectId}! How can I help you update your project?`,
@@ -342,15 +354,43 @@ const ProjectPage: React.FC = () => {
       
       // Only handle events for our project
       if (data.projectName === projectId) {
-        // Handle different stages
+        // Handle different stages with user-friendly status messages
         switch (data.stage) {
+          case 'initializing':
+            setMessages((prev) => [
+              ...prev,
+              {
+                type: "status",
+                content: "Creating your new project...",
+                statusType: "processing",
+              },
+            ]);
+            setIsBuildComplete(false);
+            break;
+            
           case 'server_starting':
             console.log('Server starting...');
+            setMessages((prev) => [
+              ...prev,
+              {
+                type: "status",
+                content: "Starting development server...",
+                statusType: "processing",
+              },
+            ]);
             setIsBuildComplete(false);
             break;
             
           case 'server_ready':
             console.log('Server ready! Enabling tabs.');
+            setMessages((prev) => [
+              ...prev,
+              {
+                type: "status",
+                content: "Development server is ready!",
+                statusType: "success",
+              },
+            ]);
             setIsBuildComplete(true);
             if (data.url) {
               setProjectUrl(data.url);
@@ -359,30 +399,98 @@ const ProjectPage: React.FC = () => {
             
           case 'server_stopped':
             console.log('Server stopped');
+            setMessages((prev) => [
+              ...prev,
+              {
+                type: "status",
+                content: "Development server stopped",
+                statusType: "info",
+              },
+            ]);
             setIsProjectRunning(false);
             break;
             
           case 'server_error':
             console.log('Server error:', data.error);
+            setMessages((prev) => [
+              ...prev,
+              {
+                type: "status",
+                content: "Server encountered an error. Check the terminal for details.",
+                statusType: "error",
+              },
+            ]);
             setIsBuildComplete(true); // Enable tabs on error so user can investigate
             break;
             
-          case 'initializing':
           case 'code_generation_starting':
+            setMessages((prev) => [
+              ...prev,
+              {
+                type: "status",
+                content: "Starting to generate your project code...",
+                statusType: "processing",
+              },
+            ]);
+            setIsBuildComplete(false);
+            break;
+            
           case 'analyzing_requirements':
+            setMessages((prev) => [
+              ...prev,
+              {
+                type: "status",
+                content: "Analyzing your requirements and planning the implementation...",
+                statusType: "processing",
+              },
+            ]);
+            setIsBuildComplete(false);
+            break;
+            
           case 'checking_build':
-            console.log(`Build stage: ${data.stage}`);
+            setMessages((prev) => [
+              ...prev,
+              {
+                type: "status",
+                content: "Running quality checks and fixing any issues...",
+                statusType: "processing",
+              },
+            ]);
             setIsBuildComplete(false);
             break;
             
           case 'initialized':
+            setMessages((prev) => [
+              ...prev,
+              {
+                type: "status",
+                content: "Project structure created successfully!",
+                statusType: "success",
+              },
+            ]);
+            break;
+            
           case 'code_generation_complete':
-            console.log('Code generation complete');
+            setMessages((prev) => [
+              ...prev,
+              {
+                type: "status",
+                content: "Code generation completed successfully!",
+                statusType: "success",
+              },
+            ]);
             // Don't enable tabs yet - wait for server_ready
             break;
             
           case 'code_generation_complete_with_errors':
-            console.log('Code generation complete with errors');
+            setMessages((prev) => [
+              ...prev,
+              {
+                type: "status",
+                content: "Code generation completed with some warnings. Your app should still work!",
+                statusType: "info",
+              },
+            ]);
             setIsBuildComplete(true); // Enable tabs so user can fix errors
             break;
         }
@@ -436,9 +544,9 @@ const ProjectPage: React.FC = () => {
         setMessages((prev) => [
           ...prev,
           {
-            type: "agent",
-            content: "Analyzing your update request...",
-            category: "analysis",
+            type: "status",
+            content: "Processing your update request...",
+            statusType: "processing",
           },
         ]);
 
@@ -558,6 +666,16 @@ const ProjectPage: React.FC = () => {
     setLoading(true);
     setIsBuildComplete(false); // Disable tabs during project creation
     setActiveTab("terminal"); // Switch to terminal tab
+    
+    // Add status message for project creation
+    setMessages((prev) => [
+      ...prev,
+      {
+        type: "status",
+        content: "Creating your project structure...",
+        statusType: "processing",
+      },
+    ]);
 
     try {
       // Initialize the project with the approved PRD
@@ -598,14 +716,9 @@ const ProjectPage: React.FC = () => {
       setMessages((prev) => [
         ...prev,
         {
-          type: "agent",
-          content: "Enhancing project with AI-generated content...",
-          category: "analysis",
-        },
-        {
-          type: "agent",
-          content: "Using task-based code generation for better results...",
-          category: "analysis",
+          type: "status",
+          content: "Generating code for your project...",
+          statusType: "processing",
         },
       ]);
 

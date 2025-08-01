@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import styled from "@emotion/styled";
 import { Message } from "../types/chat";
+import StatusMessage from "./StatusMessage";
 
 interface ChatThreadProps {
   messages: Message[];
@@ -37,10 +38,19 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
       <MessagesWrapper>
         <MessagesContainer>
           {messages.map((message, index) => (
-            <MessageBubble key={index} type={message.type}>
-              {message.category && <Category>{message.category}</Category>}
-              <Content>{message.content}</Content>
-            </MessageBubble>
+            message.type === "status" ? (
+              <StatusMessage
+                key={index}
+                content={message.content}
+                statusType={message.statusType || "info"}
+                icon={message.icon}
+              />
+            ) : (
+              <MessageBubble key={index} type={message.type}>
+                {message.category && <Category>{message.category}</Category>}
+                <Content>{message.content}</Content>
+              </MessageBubble>
+            )
           ))}
           <div ref={messagesEndRef} />
         </MessagesContainer>
@@ -84,7 +94,7 @@ const MessagesContainer = styled.div`
   gap: ${(props) => props.theme.spacing.md};
 `;
 
-const MessageBubble = styled.div<{ type: "user" | "agent" }>`
+const MessageBubble = styled.div<{ type: "user" | "agent" | "status" }>`
   max-width: 80%;
   padding: ${(props) => props.theme.spacing.md};
   border-radius: 8px;
