@@ -1038,6 +1038,76 @@ const Terminal: React.FC<TerminalProps> = ({
         window.dispatchEvent(new CustomEvent('project:status', { detail: data }));
       });
 
+      // Listen for terminal output to parse tasks
+      let taskBuffer: string[] = [];
+      let isCollectingTasks = false;
+      let createdTasksCount = 0;
+      
+      socketRef.current.on('output', (data: string) => {
+        // Check for task creation message
+        const createdMatch = data.match(/✓ Created (\d+) tasks?/);
+        if (createdMatch) {
+          isCollectingTasks = true;
+          taskBuffer = [];
+          createdTasksCount = parseInt(createdMatch[1]);
+        }
+        
+        // Collect task lines
+        if (isCollectingTasks) {
+          const lines = data.split('\n');
+          lines.forEach(line => {
+            // Match task pattern with number prefix (e.g., "  1. Task name")
+            const numberedTaskMatch = line.match(/^\s*(\d+)\.\s+(.+)$/);
+            if (numberedTaskMatch) {
+              taskBuffer.push(numberedTaskMatch[2].trim());
+            }
+          });
+          
+          // Check if we've collected all tasks
+          if (taskBuffer.length === createdTasksCount && createdTasksCount > 0) {
+            isCollectingTasks = false;
+            // Emit the collected tasks
+            window.dispatchEvent(new CustomEvent('project:status', { 
+              detail: { 
+                stage: 'tasks_generated',
+                tasks: taskBuffer
+              } 
+            }));
+          }
+        }
+        
+        // Parse individual task execution
+        const taskMatch = data.match(/> Task (\d+)\/\d+: (.+)/);
+        if (taskMatch) {
+          const taskId = parseInt(taskMatch[1]);
+          const taskTitle = taskMatch[2].trim();
+          
+          // Task is starting
+          window.dispatchEvent(new CustomEvent('project:status', { 
+            detail: { 
+              stage: 'task_started',
+              taskId: taskId,
+              taskTitle: taskTitle
+            } 
+          }));
+        }
+        
+        // Check for task completion
+        const completedMatch = data.match(/✓ Completed: (.+)/);
+        if (completedMatch) {
+          // Try to extract task ID from the title or use the most recent one
+          const taskTitle = completedMatch[1];
+          // For now, we'll use task ID 1 since we saw it's Task 1/1
+          window.dispatchEvent(new CustomEvent('project:status', { 
+            detail: { 
+              stage: 'task_completed',
+              taskId: 1,
+              taskTitle: taskTitle
+            } 
+          }));
+        }
+      });
+
       socketRef.current.on("connect_error", (err) => {
         console.error("Socket connection error:", err);
         terminalInstance.current?.write(

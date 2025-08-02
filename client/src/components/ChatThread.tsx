@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import styled from "@emotion/styled";
 import { Message } from "../types/chat";
 import StatusMessage from "./StatusMessage";
+import TaskList from "./TaskList";
 
 interface ChatThreadProps {
   messages: Message[];
@@ -37,21 +38,27 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
     <Container>
       <MessagesWrapper>
         <MessagesContainer>
-          {messages.map((message, index) => (
-            message.type === "status" ? (
-              <StatusMessage
-                key={index}
-                content={message.content}
-                statusType={message.statusType || "info"}
-                icon={message.icon}
-              />
-            ) : (
-              <MessageBubble key={index} type={message.type}>
-                {message.category && <Category>{message.category}</Category>}
-                <Content>{message.content}</Content>
-              </MessageBubble>
-            )
-          ))}
+          {messages.map((message, index) => {
+            if (message.type === "status") {
+              return (
+                <StatusMessage
+                  key={index}
+                  content={message.content}
+                  statusType={message.statusType || "info"}
+                  icon={message.icon}
+                />
+              );
+            } else if (message.type === "tasks" && message.tasks) {
+              return <TaskList key={index} tasks={message.tasks} />;
+            } else {
+              return (
+                <MessageBubble key={index} type={message.type}>
+                  {message.category && <Category>{message.category}</Category>}
+                  <Content>{message.content}</Content>
+                </MessageBubble>
+              );
+            }
+          })}
           <div ref={messagesEndRef} />
         </MessagesContainer>
       </MessagesWrapper>
@@ -94,7 +101,7 @@ const MessagesContainer = styled.div`
   gap: ${(props) => props.theme.spacing.md};
 `;
 
-const MessageBubble = styled.div<{ type: "user" | "agent" | "status" }>`
+const MessageBubble = styled.div<{ type: "user" | "agent" | "status" | "tasks" }>`
   max-width: 80%;
   padding: ${(props) => props.theme.spacing.md};
   border-radius: 8px;

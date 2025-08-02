@@ -394,8 +394,8 @@ const ProjectPage: React.FC = () => {
       const data = event.detail;
       console.log('Received project:status event:', data);
       
-      // Only handle events for our project
-      if (data.projectName === projectId) {
+      // Only handle events for our project (or events without projectName like tasks_generated)
+      if (data.projectName === projectId || !data.projectName) {
         // Handle different stages with user-friendly status messages
         switch (data.stage) {
           case 'initializing':
@@ -450,15 +450,24 @@ const ProjectPage: React.FC = () => {
             break;
             
           case 'analyzing_requirements':
-            setMessages((prev) => [
-              ...prev,
-              {
-                type: "status",
-                content: "Analyzing your requirements and planning the implementation...",
-                statusType: "processing",
-              },
-            ]);
+            addStatusMessage("Analyzing your requirements and planning the implementation...", "processing");
             setIsBuildComplete(false);
+            // Check if tasks are included in the data
+            if (data.tasks && Array.isArray(data.tasks)) {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  type: "tasks",
+                  content: "Task breakdown for your project:",
+                  tasks: data.tasks.map((task: any, index: number) => ({
+                    id: index + 1,
+                    title: task.title || task,
+                    status: "pending",
+                    details: task.details || undefined
+                  }))
+                },
+              ]);
+            }
             break;
             
           case 'checking_build':
@@ -506,6 +515,82 @@ const ProjectPage: React.FC = () => {
               },
             ]);
             setIsBuildComplete(true); // Enable tabs so user can fix errors
+            break;
+            
+          case 'tasks_generated':
+            // Display the generated tasks
+            console.log('Handling tasks_generated with tasks:', data.tasks);
+            if (data.tasks && Array.isArray(data.tasks)) {
+              const taskMessage = {
+                type: "tasks" as const,
+                content: "Task breakdown for your project:",
+                tasks: data.tasks.map((task: any, index: number) => ({
+                  id: index + 1,
+                  title: task.title || task,
+                  status: "pending" as const,
+                  details: task.details || undefined
+                }))
+              };
+              console.log('Adding task message:', taskMessage);
+              setMessages((prev) => [...prev, taskMessage]);
+            }
+            break;
+            
+          case 'task_started':
+            // Update task status to in_progress
+            if (data.taskId) {
+              setMessages((prev) => prev.map(msg => {
+                if (msg.type === "tasks" && msg.tasks) {
+                  return {
+                    ...msg,
+                    tasks: msg.tasks.map(task => 
+                      task.id === data.taskId 
+                        ? { ...task, status: "in_progress" as const }
+                        : task
+                    )
+                  };
+                }
+                return msg;
+              }));
+            }
+            break;
+            
+          case 'task_completed':
+            // Update task status to completed
+            if (data.taskId) {
+              setMessages((prev) => prev.map(msg => {
+                if (msg.type === "tasks" && msg.tasks) {
+                  return {
+                    ...msg,
+                    tasks: msg.tasks.map(task => 
+                      task.id === data.taskId 
+                        ? { ...task, status: "completed" as const }
+                        : task
+                    )
+                  };
+                }
+                return msg;
+              }));
+            }
+            break;
+            
+          case 'task_failed':
+            // Update task status to failed
+            if (data.taskId) {
+              setMessages((prev) => prev.map(msg => {
+                if (msg.type === "tasks" && msg.tasks) {
+                  return {
+                    ...msg,
+                    tasks: msg.tasks.map(task => 
+                      task.id === data.taskId 
+                        ? { ...task, status: "failed" as const, details: data.error || task.details }
+                        : task
+                    )
+                  };
+                }
+                return msg;
+              }));
+            }
             break;
         }
       }

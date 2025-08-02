@@ -9,10 +9,18 @@ export type MessageCategory =
   | "status"
   | "info";
 
+export interface Task {
+  id: number;
+  title: string;
+  status: "pending" | "in_progress" | "completed" | "failed";
+  details?: string;
+}
+
 export interface Message {
-  type: "user" | "agent" | "status";
+  type: "user" | "agent" | "status" | "tasks";
   content: string;
   category?: MessageCategory;
   statusType?: "processing" | "success" | "error" | "info";
   icon?: string;
+  tasks?: Task[];
 }
