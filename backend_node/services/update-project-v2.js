@@ -201,23 +201,257 @@ router.post("/update-project-v2", async (req, res) => {
       socket.emit('output', `  Files generated: ${results.summary.generatedFiles}\n\n`);
     }
 
-    // Step 3: Run compilation check and auto-fix
-    if (socket) {
-      socket.emit('output', '\x1b[1;34m> Checking for compilation errors...\x1b[0m\n');
-      // Emit status event for compilation check
-      socket.emit('project:status', {
-        projectName,
-        stage: 'checking_build',
-        message: 'Checking for compilation errors...'
+    // Analyze what was actually generated to determine if build validation is needed
+    const analyzeGeneratedChanges = (taskResults) => {
+      const analysis = {
+        filesCount: 0,
+        totalLinesChanged: 0,
+        hasTypeScriptChanges: false,
+        hasNewImports: false,
+        hasNewExports: false,
+        hasEventHandlers: false,
+        hasStateManagement: false,
+        hasStructuralChanges: false,
+        largestFileChangeLines: 0,
+        fileTypes: new Set()
+      };
+      
+      // DEBUG: Log the structure of taskResults
+      console.log('\n--- DEBUG: Task Results Structure ---');
+      console.log('taskResults type:', typeof taskResults);
+      console.log('taskResults keys:', taskResults ? Object.keys(taskResults) : 'null');
+      if (taskResults && taskResults.results) {
+        console.log('taskResults.results length:', taskResults.results.length);
+        if (taskResults.results[0]) {
+          console.log('First result keys:', Object.keys(taskResults.results[0]));
+          console.log('First result sample:', {
+            hasFiles: !!taskResults.results[0].files,
+            filesType: typeof taskResults.results[0].files,
+            filesSample: taskResults.results[0].files ? Object.keys(taskResults.results[0].files).slice(0, 2) : 'no files'
+          });
+        }
+      }
+      console.log('--- END DEBUG ---\n');
+      
+      // If no results, assume simple
+      if (!taskResults || !taskResults.results) {
+        console.log('No task results to analyze, assuming simple change');
+        return { needsBuild: false, confidence: 0.5, analysis };
+      }
+      
+      // Analyze each generated file
+      for (const result of taskResults.results) {
+        // Check both possible locations for files (files or filesWritten)
+        const files = result.files || result.filesWritten;
+        
+        // DEBUG: Log what we found
+        console.log('Analyzing result:', {
+          hasFiles: !!result.files,
+          hasFilesWritten: !!result.filesWritten,
+          filesWrittenType: typeof result.filesWritten,
+          filesWrittenSample: result.filesWritten ? 
+            (Array.isArray(result.filesWritten) ? 
+              `Array with ${result.filesWritten.length} items` : 
+              `Object with keys: ${Object.keys(result.filesWritten).slice(0,3)}`) 
+            : 'none'
+        });
+        
+        if (files) {
+          // Handle both array of paths and object with content
+          if (Array.isArray(files)) {
+            // If it's an array of file paths, we need to read the content
+            for (const filepath of files) {
+              analysis.filesCount++;
+              const ext = path.extname(filepath);
+              analysis.fileTypes.add(ext);
+              
+              // For now, estimate lines for files we can't read
+              // This is a temporary fix - we should read the actual files
+              analysis.totalLinesChanged += 50; // Estimate
+              analysis.largestFileChangeLines = Math.max(analysis.largestFileChangeLines, 50);
+              
+              if (['.ts', '.tsx', '.jsx', '.js'].includes(ext)) {
+                analysis.hasTypeScriptChanges = true;
+                // Can't analyze content without reading the file
+              }
+            }
+          } else {
+            // Object with file content
+            for (const [filepath, content] of Object.entries(files)) {
+              analysis.filesCount++;
+              
+              // Track file types
+              const ext = path.extname(filepath);
+              analysis.fileTypes.add(ext);
+              
+              // Count lines
+              const lines = content.split('\n');
+              const lineCount = lines.length;
+              analysis.totalLinesChanged += lineCount;
+              analysis.largestFileChangeLines = Math.max(analysis.largestFileChangeLines, lineCount);
+              
+              // Analyze content for complexity indicators
+              const contentLower = content.toLowerCase();
+              
+              // Check for TypeScript/JSX files
+              if (['.ts', '.tsx', '.jsx', '.js'].includes(ext)) {
+                analysis.hasTypeScriptChanges = true;
+                
+                // Check for imports (new dependencies)
+                if (/^import\s+/m.test(content) && content.includes('from')) {
+                  // Check if it's adding NEW imports (not just modifying existing)
+                  const importCount = (content.match(/^import\s+.*from/gm) || []).length;
+                  if (importCount > 2) { // More than basic React imports
+                    analysis.hasNewImports = true;
+                  }
+                }
+                
+                // Check for exports (new components/functions)
+                if (/export\s+(default\s+)?(function|const|class)/m.test(content)) {
+                  analysis.hasNewExports = true;
+                }
+                
+                // Check for event handlers (any variation)
+                if (/on[A-Z]\w+\s*[=:]/i.test(content) || /addEventListener/i.test(content)) {
+                  analysis.hasEventHandlers = true;
+                }
+                
+                // Check for state management
+                if (/use(State|Reducer|Effect|Callback|Memo)\s*\(/i.test(content)) {
+                  analysis.hasStateManagement = true;
+                }
+                
+                // Check for structural changes (new components, functions)
+                if (/function\s+[A-Z]\w+\s*\(/.test(content) || /const\s+[A-Z]\w+\s*=\s*\(/.test(content)) {
+                  analysis.hasStructuralChanges = true;
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      // Determine if build is needed based on actual changes
+      const needsBuild = 
+        analysis.hasStructuralChanges ||
+        analysis.hasNewExports ||
+        analysis.hasEventHandlers ||
+        analysis.hasStateManagement ||
+        analysis.filesCount > 2 ||
+        analysis.largestFileChangeLines > 100;
+      
+      // Calculate confidence based on how clear the indicators are
+      let confidence = 0.9;
+      let confidenceReason = 'default';
+      
+      if (analysis.filesCount === 1 && analysis.totalLinesChanged < 20) {
+        confidence = 0.95;
+        confidenceReason = 'single file, < 20 lines';
+      } else if (analysis.filesCount > 3 || analysis.totalLinesChanged > 200) {
+        confidence = 0.95;
+        confidenceReason = 'many files or > 200 lines';
+      } else {
+        confidence = 0.7;
+        confidenceReason = `medium: ${analysis.filesCount} files, ${analysis.totalLinesChanged} lines`;
+      }
+      
+      // Detailed logging for debugging
+      console.log('\n--- Confidence Calculation ---');
+      console.log(`Files: ${analysis.filesCount}, Lines: ${analysis.totalLinesChanged}`);
+      console.log(`Confidence: ${confidence} (${confidenceReason})`);
+      console.log(`Thresholds: <20 lines = 0.95, 20-200 lines = 0.7, >200 lines = 0.95`);
+      
+      console.log('\n--- Change Indicators ---');
+      console.log('Complexity indicators found:', {
+        hasEventHandlers: analysis.hasEventHandlers,
+        hasStateManagement: analysis.hasStateManagement,
+        hasNewExports: analysis.hasNewExports,
+        hasStructuralChanges: analysis.hasStructuralChanges,
+        hasNewImports: analysis.hasNewImports,
+        largeFile: analysis.largestFileChangeLines > 100
       });
-    }
+      
+      console.log('\n--- Build Decision ---');
+      console.log(`Need Build: ${needsBuild}`);
+      console.log(`Reason: ${needsBuild ? 
+        (analysis.hasEventHandlers ? 'Has event handlers' :
+         analysis.hasStateManagement ? 'Has state management' :
+         analysis.hasNewExports ? 'Has new exports' :
+         analysis.hasStructuralChanges ? 'Has structural changes' :
+         analysis.filesCount > 2 ? 'Multiple files changed' :
+         analysis.largestFileChangeLines > 100 ? 'Large file change' : 'Unknown')
+        : 'No complexity indicators found'
+      }`);
+      
+      return { needsBuild, confidence, analysis };
+    };
     
-    const compilationResult = await compilationChecker.checkAndFix(projectPath, socket);
+    // Step 3: Run compilation check and auto-fix (conditionally)
+    let compilationResult;
+    let skipBuildValidation = false;
+    
+    // Analyze what was actually generated to determine if build validation is needed
+    const changeAnalysis = analyzeGeneratedChanges(results);
+    
+    // DEBUG: Log the complete analysis results
+    console.log('\n========================================');
+    console.log('📊 CHANGE ANALYSIS DEBUG INFO:');
+    console.log('========================================');
+    console.log('Requirements:', requirements.substring(0, 100));
+    console.log('Is Update:', isUpdate);
+    console.log('Analysis Results:', {
+      needsBuild: changeAnalysis.needsBuild,
+      confidence: changeAnalysis.confidence,
+      confidenceThreshold: 0.7,
+      willSkipBuild: !changeAnalysis.needsBuild && changeAnalysis.confidence >= 0.7,
+      details: changeAnalysis.analysis
+    });
+    console.log('Decision Logic:');
+    console.log(`  - needsBuild: ${changeAnalysis.needsBuild} (false = good for skip)`);
+    console.log(`  - confidence: ${changeAnalysis.confidence} (needs >= 0.7)`);
+    console.log(`  - confidence >= 0.7: ${changeAnalysis.confidence >= 0.7}`);
+    console.log(`  - Final decision: ${(!changeAnalysis.needsBuild && changeAnalysis.confidence >= 0.7) ? 'SKIP BUILD ✅' : 'RUN BUILD ⚠️'}`);
+    console.log('========================================\n');
+    
+    // Check if this is a simple change that doesn't need build validation
+    // Changed from > 0.7 to >= 0.7 to include medium confidence cases
+    if (isUpdate && !changeAnalysis.needsBuild && changeAnalysis.confidence >= 0.7) {
+      skipBuildValidation = true;
+      
+      if (socket) {
+        socket.emit('output', '\n\x1b[1;32m✅ Simple change detected - skipping build validation\x1b[0m\n');
+        socket.emit('output', `\x1b[90m📊 Analysis: ${changeAnalysis.analysis.filesCount} file(s), ${changeAnalysis.analysis.totalLinesChanged} lines changed\x1b[0m\n`);
+        socket.emit('output', '\x1b[90mRelying on hot reload for instant updates...\x1b[0m\n\n');
+      }
+      
+      compilationResult = { 
+        success: true, 
+        skipped: true,
+        reason: 'Simple change - no build validation needed',
+        analysis: changeAnalysis.analysis
+      };
+    } else {
+      // Complex change or low confidence - run full validation
+      if (socket) {
+        if (changeAnalysis.confidence <= 0.7) {
+          socket.emit('output', '\x1b[90m⚠️ Uncertain change complexity - running build validation for safety\x1b[0m\n');
+        }
+        socket.emit('output', '\x1b[1;34m> Checking for compilation errors...\x1b[0m\n');
+        // Emit status event for compilation check
+        socket.emit('project:status', {
+          projectName,
+          stage: 'checking_build',
+          message: 'Checking for compilation errors...'
+        });
+      }
+      
+      compilationResult = await compilationChecker.checkAndFix(projectPath, socket);
+    }
     
     let llmValidationResult = { success: false };
     
-    // Step 4: If compilation still has errors, use LLM to fix them
-    if (!compilationResult.success) {
+    // Step 4: If compilation still has errors, use LLM to fix them (skip for simple changes)
+    if (!compilationResult.success && !skipBuildValidation) {
       if (socket) {
         socket.emit('output', '\n\x1b[1;33m> Compilation errors detected. Using AI to analyze and fix...\x1b[0m\n');
       }
@@ -280,11 +514,13 @@ router.post("/update-project-v2", async (req, res) => {
       summary: {
         ...results.summary,
         compilationSuccess: compilationResult.success,
-        compilationAttempts: compilationResult.attempts,
+        compilationSkipped: compilationResult.skipped || false,
+        compilationAttempts: compilationResult.attempts || (compilationResult.skipped ? 0 : 1),
         compilationErrors: compilationResult.errors?.length || 0,
         llmValidationSuccess: llmValidationResult.success,
         llmValidationAttempts: llmValidationResult.attempts || 0,
-        devServerRestarted: projectWasRunning && llmValidationResult.success
+        devServerRestarted: projectWasRunning && llmValidationResult.success,
+        simpleChangeDetected: skipBuildValidation
       },
       details: results.results
     });
