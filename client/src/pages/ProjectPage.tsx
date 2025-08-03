@@ -5,6 +5,8 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ChatThread } from "../components/ChatThread";
 import { PRDPanel } from "../components/PRDPanel";
 import TabbedPanel from "../components/TabbedPanel";
+import GeneratingStatus from "../components/GeneratingStatus";
+import CubeLoader from "../components/CubeLoader";
 import { Message } from "../types/chat";
 import { CommandSuggestion } from "../types/terminal";
 
@@ -53,6 +55,8 @@ const ProjectPage: React.FC = () => {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoadingState] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingMessage, setGeneratingMessage] = useState("");
 
   // Wrapper to track loading state changes
   const setLoading = (value: boolean) => {
@@ -77,7 +81,13 @@ const ProjectPage: React.FC = () => {
 
   // Check if this is a new project
   const isNewProject = projectId === "new";
+  
+  // Track project creation lifecycle (must be after isNewProject)
+  const [projectCreationPhase, setProjectCreationPhase] = useState<
+    "initial" | "prd_generated" | "prd_approved" | "creating" | "created" | "existing"
+  >(isNewProject ? "initial" : "existing");
   const initialRequirement = location.state?.requirement;
+  const [hasProcessedInitialRequirement, setHasProcessedInitialRequirement] = useState(false);
 
   // Terminal state handlers
   const addMessage = useCallback((text: string, isError: boolean) => {
@@ -317,17 +327,20 @@ const ProjectPage: React.FC = () => {
 
   // Initialize the page
   useEffect(() => {
-    if (isNewProject && initialRequirement) {
+    if (isNewProject && initialRequirement && projectCreationPhase === "initial" && !hasProcessedInitialRequirement) {
       // Store the requirement
       setRequirement(initialRequirement);
-      // Automatically generate PRD for new project
+      // Mark as processed to prevent duplicate calls
+      setHasProcessedInitialRequirement(true);
+      // Automatically generate PRD for new project (only once)
       handleSendMessage(initialRequirement);
       setIsInitializing(false);
     } else if (!isNewProject && projectId) {
       // For existing projects
       setLoading(false); // Ensure loading is false for existing projects
       checkProjectExists(projectId).then((exists) => {
-        if (exists && !hasShownWelcome) {
+        // Only show welcome message for truly existing projects, not newly created ones
+        if (exists && !hasShownWelcome && projectCreationPhase === "existing") {
           setHasShownWelcome(true);
           setMessages((prev) => [
             ...prev,
@@ -356,6 +369,7 @@ const ProjectPage: React.FC = () => {
     isNewProject,
     initialRequirement,
     projectId,
+    projectCreationPhase,
     checkProjectExists,
     fetchProjectStatus,
   ]);
@@ -413,6 +427,13 @@ const ProjectPage: React.FC = () => {
             console.log('Server ready! Enabling tabs.');
             addStatusMessage("Development server is ready!", "success");
             setIsBuildComplete(true);
+            // Clear generation status when server is ready (project creation complete)
+            setIsGenerating(false);
+            setGeneratingMessage("");
+            // Mark phase as created if we were creating
+            if (projectCreationPhase === "creating") {
+              setProjectCreationPhase("created");
+            }
             if (data.url) {
               setProjectUrl(data.url);
             }
@@ -445,11 +466,21 @@ const ProjectPage: React.FC = () => {
             break;
             
           case 'code_generation_starting':
+            // Only show generating status if we're actually creating or updating
+            if (projectCreationPhase === "creating" || projectCreationPhase === "existing") {
+              setIsGenerating(true);
+              setGeneratingMessage("Starting to generate your project code...");
+            }
             addStatusMessage("Starting to generate your project code...", "processing");
             setIsBuildComplete(false);
             break;
             
           case 'analyzing_requirements':
+            // Only show generating status if we're actually creating or updating
+            if (projectCreationPhase === "creating" || projectCreationPhase === "existing") {
+              setIsGenerating(true);
+              setGeneratingMessage("Analyzing your requirements and planning the implementation...");
+            }
             addStatusMessage("Analyzing your requirements and planning the implementation...", "processing");
             setIsBuildComplete(false);
             // Check if tasks are included in the data
@@ -494,6 +525,8 @@ const ProjectPage: React.FC = () => {
             break;
             
           case 'code_generation_complete':
+            setIsGenerating(false);
+            setGeneratingMessage("");
             setMessages((prev) => [
               ...prev,
               {
@@ -506,6 +539,8 @@ const ProjectPage: React.FC = () => {
             break;
             
           case 'code_generation_complete_with_errors':
+            setIsGenerating(false);
+            setGeneratingMessage("");
             setMessages((prev) => [
               ...prev,
               {
@@ -606,22 +641,48 @@ const ProjectPage: React.FC = () => {
   }, [projectId, addStatusMessage]);
 
   const handleSendMessage = async (message: string) => {
+    console.log("handleSendMessage called with:", message, "phase:", projectCreationPhase);
+    
+    // Don't allow sending messages during certain phases
+    if (projectCreationPhase === "creating" || projectCreationPhase === "prd_approved") {
+      console.log("Message blocked: Project is being created");
+      return;
+    }
+    
+    // Check if this is a duplicate initial requirement (prevent double PRD generation)
+    if (isNewProject && projectCreationPhase !== "initial") {
+      console.log("Message blocked: PRD already generated or in progress");
+      return;
+    }
+    
     // Don't set loading for existing projects - only for PRD generation
     if (isNewProject && !prd) {
       setLoading(true);
     }
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        type: "user",
-        content: message,
-        category: "requirement",
-      },
-    ]);
+    // Check if this exact message already exists to prevent duplicates
+    setMessages((prev) => {
+      const isDuplicate = prev.some(
+        msg => msg.type === "user" && msg.content === message && msg.category === "requirement"
+      );
+      
+      if (isDuplicate) {
+        console.log("Duplicate message detected, not adding");
+        return prev;
+      }
+      
+      return [
+        ...prev,
+        {
+          type: "user",
+          content: message,
+          category: "requirement",
+        },
+      ];
+    });
 
     try {
-      if (isNewProject && !prd) {
+      if (isNewProject && !prd && projectCreationPhase === "initial") {
         // Generate PRD for new project
         const prdResult = await axios.post<PRDResponse>(
           "http://localhost:5001/generate-prd",
@@ -638,8 +699,12 @@ const ProjectPage: React.FC = () => {
         ]);
 
         setPRD(prdResult.data.prd);
-      } else if (!isNewProject && projectId) {
-        // Handle updates for existing project only
+        setProjectCreationPhase("prd_generated");
+        setLoading(false); // Stop loading after PRD is generated
+      } else if (projectCreationPhase === "existing" && projectId) {
+        // Handle updates for existing project only (not during initial creation)
+        setIsGenerating(true);
+        setGeneratingMessage(`Updating ${projectId} to implement your changes...`);
         addStatusMessage("Processing your update request...", "processing");
 
         // Disable tabs and switch to terminal for update
@@ -657,6 +722,44 @@ const ProjectPage: React.FC = () => {
         );
 
         if (updateResult.data.success) {
+          setIsGenerating(false);
+          setGeneratingMessage("");
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "agent",
+              content:
+                "✅ Project updated successfully! Check the preview to see your changes.",
+              category: "success",
+            },
+          ]);
+        }
+      } else if (projectCreationPhase === "created" && projectId) {
+        // After initial project creation is complete, handle as updates
+        setProjectCreationPhase("existing"); // Convert to existing project
+        
+        // Now handle as update
+        setIsGenerating(true);
+        setGeneratingMessage(`Updating ${projectId} to implement your changes...`);
+        addStatusMessage("Processing your update request...", "processing");
+
+        // Disable tabs and switch to terminal for update
+        setIsBuildComplete(false);
+        setActiveTab("terminal");
+        
+        // Call update endpoint
+        const updateResult = await axios.post(
+          "http://localhost:5001/api/update-project-v2",
+          {
+            projectName: projectId,
+            requirements: message,
+            socketId,
+          }
+        );
+
+        if (updateResult.data.success) {
+          setIsGenerating(false);
+          setGeneratingMessage("");
           setMessages((prev) => [
             ...prev,
             {
@@ -681,6 +784,8 @@ const ProjectPage: React.FC = () => {
       }
     } catch (err) {
       console.error("Error:", err);
+      setIsGenerating(false);
+      setGeneratingMessage("");
       setMessages((prev) => [
         ...prev,
         {
@@ -715,6 +820,9 @@ const ProjectPage: React.FC = () => {
       ]);
       return;
     }
+    
+    // Mark PRD as approved
+    setProjectCreationPhase("prd_approved");
 
     // If socket isn't ready yet, wait for it
     if (!socketId) {
@@ -758,6 +866,7 @@ const ProjectPage: React.FC = () => {
     setLoading(true);
     setIsBuildComplete(false); // Disable tabs during project creation
     setActiveTab("terminal"); // Switch to terminal tab
+    setProjectCreationPhase("creating"); // Mark as creating
     
     // Add status message for project creation
     setMessages((prev) => [
@@ -803,6 +912,9 @@ const ProjectPage: React.FC = () => {
 
       // Hide PRD panel and show chat
       setPRD(null);
+      
+      // Mark project as created
+      setProjectCreationPhase("created");
 
       // Now generate the code for the project using task-based approach
       setMessages((prev) => [
@@ -871,10 +983,16 @@ const ProjectPage: React.FC = () => {
         }
       }
 
+      // Clear generation status before navigation
+      setIsGenerating(false);
+      setGeneratingMessage("");
+      
       // Navigate to the new project page
       navigate(`/project/${projectName}`, { replace: true });
     } catch (error) {
       console.error("Error initializing project:", error);
+      setIsGenerating(false);
+      setGeneratingMessage("");
       setMessages((prev) => [
         ...prev,
         {
@@ -907,6 +1025,13 @@ const ProjectPage: React.FC = () => {
             messages={messages}
             onSendMessage={handleSendMessage}
             loading={loading}
+            isGenerating={isGenerating}
+            generatingMessage={generatingMessage}
+            onStopGeneration={() => {
+              setIsGenerating(false);
+              setGeneratingMessage("");
+              // TODO: Implement actual stop generation logic
+            }}
           />
         )}
       </LeftPanel>

@@ -1,6 +1,7 @@
 import React from "react";
 import styled from "@emotion/styled";
 import { keyframes } from "@emotion/react";
+import CubeLoader from "./CubeLoader";
 
 interface StatusMessageProps {
   content: string;
@@ -27,10 +28,16 @@ const StatusMessage: React.FC<StatusMessageProps> = ({ content, statusType, icon
 
   return (
     <Container statusType={statusType}>
-      <IconWrapper statusType={statusType}>
-        <Icon>{getIcon()}</Icon>
-      </IconWrapper>
-      <Content>{content}</Content>
+      {statusType === "processing" && content.includes("Updating") ? (
+        <CubeLoader text={content} />
+      ) : (
+        <>
+          <IconWrapper statusType={statusType}>
+            <Icon>{getIcon()}</Icon>
+          </IconWrapper>
+          <Content>{content}</Content>
+        </>
+      )}
     </Container>
   );
 };

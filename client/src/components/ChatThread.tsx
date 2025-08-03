@@ -3,17 +3,24 @@ import styled from "@emotion/styled";
 import { Message } from "../types/chat";
 import StatusMessage from "./StatusMessage";
 import TaskList from "./TaskList";
+import GeneratingStatus from "./GeneratingStatus";
 
 interface ChatThreadProps {
   messages: Message[];
   onSendMessage: (message: string) => void;
   loading?: boolean;
+  isGenerating?: boolean;
+  generatingMessage?: string;
+  onStopGeneration?: () => void;
 }
 
 export const ChatThread: React.FC<ChatThreadProps> = ({
   messages,
   onSendMessage,
   loading,
+  isGenerating,
+  generatingMessage,
+  onStopGeneration,
 }) => {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -53,12 +60,20 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
             } else {
               return (
                 <MessageBubble key={index} type={message.type}>
-                  {message.category && <Category>{message.category}</Category>}
+                  {message.category && message.category !== "requirement" && (
+                    <Category>{message.category}</Category>
+                  )}
                   <Content>{message.content}</Content>
                 </MessageBubble>
               );
             }
           })}
+          {isGenerating && (
+            <GeneratingStatus 
+              message={generatingMessage || "Generating..."} 
+              onStop={onStopGeneration}
+            />
+          )}
           <div ref={messagesEndRef} />
         </MessagesContainer>
       </MessagesWrapper>
