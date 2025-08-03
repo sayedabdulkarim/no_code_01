@@ -17,6 +17,7 @@ export interface Task {
 }
 
 export interface Message {
+  id?: string;
   type: "user" | "agent" | "status" | "tasks";
   content: string;
   category?: MessageCategory;

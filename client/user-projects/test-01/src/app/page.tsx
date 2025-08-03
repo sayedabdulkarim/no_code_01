@@ -7,7 +7,7 @@ export default function Home() {
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-green-500 mb-2">
+          <h1 className="text-3xl font-bold text-red-500 mb-2">
             Color Picker Tool
           </h1>
           <p className="text-gray-600">

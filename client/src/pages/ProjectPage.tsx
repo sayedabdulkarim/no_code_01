@@ -120,7 +120,7 @@ const ProjectPage: React.FC = () => {
   }, []);
   
   // Helper to add status message without duplicates
-  const addStatusMessage = useCallback((content: string, statusType: "processing" | "success" | "error" | "info") => {
+  const addStatusMessage = useCallback((content: string, statusType: "processing" | "success" | "error" | "info", messageId?: string) => {
     setMessages((prev) => {
       // Check if we already have this exact status message
       const hasSimilarMessage = prev.some(msg => 
@@ -132,6 +132,7 @@ const ProjectPage: React.FC = () => {
         return [
           ...prev,
           {
+            id: messageId,
             type: "status",
             content,
             statusType,
@@ -140,6 +141,16 @@ const ProjectPage: React.FC = () => {
       }
       return prev;
     });
+  }, []);
+  
+  // Helper to update status message by ID
+  const updateStatusMessage = useCallback((messageId: string, updates: { content?: string; statusType?: "processing" | "success" | "error" | "info"; icon?: string }) => {
+    setMessages((prev) => prev.map(msg => {
+      if (msg.id === messageId) {
+        return { ...msg, ...updates };
+      }
+      return msg;
+    }));
   }, []);
   
   
@@ -158,23 +169,7 @@ const ProjectPage: React.FC = () => {
     setActiveTab("terminal"); // Switch to terminal tab
     
     // Add status message for starting project only once
-    setMessages((prev) => {
-      // Check if we already have a "Starting" message
-      const hasStartingMessage = prev.some(msg => 
-        msg.content.includes("Starting") && msg.statusType === "processing"
-      );
-      if (!hasStartingMessage) {
-        return [
-          ...prev,
-          {
-            type: "status",
-            content: "Starting your project...",
-            statusType: "processing",
-          },
-        ];
-      }
-      return prev;
-    });
+    addStatusMessage("Starting your project...", "processing", "status-project-start");
     
     try {
       // Get project path from the backend
@@ -199,6 +194,12 @@ const ProjectPage: React.FC = () => {
       if (response.data.url) {
         setProjectUrl(response.data.url);
         setIsProjectRunning(true);
+        // Update the starting message to remove spinner
+        updateStatusMessage("status-project-start", {
+          content: "Project started successfully!",
+          statusType: "success",
+          icon: "✅"
+        });
         setMessages((prev) => [
           ...prev,
           {
@@ -413,19 +414,24 @@ const ProjectPage: React.FC = () => {
         // Handle different stages with user-friendly status messages
         switch (data.stage) {
           case 'initializing':
-            addStatusMessage("Creating your new project...", "processing");
+            addStatusMessage("Creating your new project...", "processing", "status-initializing");
             setIsBuildComplete(false);
             break;
             
           case 'server_starting':
             console.log('Server starting...');
-            addStatusMessage("Starting development server...", "processing");
+            addStatusMessage("Starting development server...", "processing", "status-server");
             setIsBuildComplete(false);
             break;
             
           case 'server_ready':
             console.log('Server ready! Enabling tabs.');
-            addStatusMessage("Development server is ready!", "success");
+            // Update the server starting message to remove spinner
+            updateStatusMessage("status-server", {
+              content: "Development server is ready!",
+              statusType: "success",
+              icon: "✅"
+            });
             setIsBuildComplete(true);
             // Clear generation status when server is ready (project creation complete)
             setIsGenerating(false);
@@ -471,7 +477,7 @@ const ProjectPage: React.FC = () => {
               setIsGenerating(true);
               setGeneratingMessage("Starting to generate your project code...");
             }
-            addStatusMessage("Starting to generate your project code...", "processing");
+            addStatusMessage("Starting to generate your project code...", "processing", "status-codegen");
             setIsBuildComplete(false);
             break;
             
@@ -481,7 +487,7 @@ const ProjectPage: React.FC = () => {
               setIsGenerating(true);
               setGeneratingMessage("Analyzing your requirements and planning the implementation...");
             }
-            addStatusMessage("Analyzing your requirements and planning the implementation...", "processing");
+            addStatusMessage("Analyzing your requirements and planning the implementation...", "processing", "status-analyzing");
             setIsBuildComplete(false);
             // Check if tasks are included in the data
             if (data.tasks && Array.isArray(data.tasks)) {
@@ -502,53 +508,57 @@ const ProjectPage: React.FC = () => {
             break;
             
           case 'checking_build':
-            setMessages((prev) => [
-              ...prev,
-              {
-                type: "status",
-                content: "Running quality checks and fixing any issues...",
-                statusType: "processing",
-              },
-            ]);
+            addStatusMessage("Running quality checks and fixing any issues...", "processing", "status-build-check");
             setIsBuildComplete(false);
             break;
             
           case 'initialized':
-            setMessages((prev) => [
-              ...prev,
-              {
-                type: "status",
-                content: "Project structure created successfully!",
-                statusType: "success",
-              },
-            ]);
+            // Update the initializing message to remove spinner
+            updateStatusMessage("status-initializing", {
+              content: "Project structure created successfully!",
+              statusType: "success",
+              icon: "✅"
+            });
             break;
             
           case 'code_generation_complete':
             setIsGenerating(false);
             setGeneratingMessage("");
-            setMessages((prev) => [
-              ...prev,
-              {
-                type: "status",
-                content: "Code generation completed successfully!",
-                statusType: "success",
-              },
-            ]);
+            // Update the code generation message to remove spinner
+            updateStatusMessage("status-codegen", {
+              content: "Code generation completed successfully!",
+              statusType: "success",
+              icon: "✅"
+            });
+            // Update analyzing message if it exists
+            updateStatusMessage("status-analyzing", {
+              content: "Requirements analyzed successfully!",
+              statusType: "success",
+              icon: "✅"
+            });
+            // Update build check message if it exists
+            updateStatusMessage("status-build-check", {
+              content: "Quality checks passed!",
+              statusType: "success",
+              icon: "✅"
+            });
             // Don't enable tabs yet - wait for server_ready
             break;
             
           case 'code_generation_complete_with_errors':
             setIsGenerating(false);
             setGeneratingMessage("");
-            setMessages((prev) => [
-              ...prev,
-              {
-                type: "status",
-                content: "Code generation completed with some warnings. Your app should still work!",
-                statusType: "info",
-              },
-            ]);
+            // Update messages to show completion with warnings
+            updateStatusMessage("status-codegen", {
+              content: "Code generation completed with some warnings",
+              statusType: "info",
+              icon: "⚠️"
+            });
+            updateStatusMessage("status-build-check", {
+              content: "Quality checks completed with warnings",
+              statusType: "info",
+              icon: "⚠️"
+            });
             setIsBuildComplete(true); // Enable tabs so user can fix errors
             break;
             
@@ -638,7 +648,7 @@ const ProjectPage: React.FC = () => {
     return () => {
       window.removeEventListener('project:status', handleProjectStatus as EventListener);
     };
-  }, [projectId, addStatusMessage]);
+  }, [projectId, addStatusMessage, updateStatusMessage, projectCreationPhase]);
 
   const handleSendMessage = async (message: string) => {
     console.log("handleSendMessage called with:", message, "phase:", projectCreationPhase);
@@ -705,7 +715,7 @@ const ProjectPage: React.FC = () => {
         // Handle updates for existing project only (not during initial creation)
         setIsGenerating(true);
         setGeneratingMessage(`Updating ${projectId} to implement your changes...`);
-        addStatusMessage("Processing your update request...", "processing");
+        addStatusMessage("Processing your update request...", "processing", "status-update-request");
 
         // Disable tabs and switch to terminal for update
         setIsBuildComplete(false);
@@ -724,6 +734,12 @@ const ProjectPage: React.FC = () => {
         if (updateResult.data.success) {
           setIsGenerating(false);
           setGeneratingMessage("");
+          // Update the processing message to remove spinner
+          updateStatusMessage("status-update-request", {
+            content: "Update processed successfully!",
+            statusType: "success",
+            icon: "✅"
+          });
           setMessages((prev) => [
             ...prev,
             {
@@ -760,6 +776,12 @@ const ProjectPage: React.FC = () => {
         if (updateResult.data.success) {
           setIsGenerating(false);
           setGeneratingMessage("");
+          // Update the processing message to remove spinner
+          updateStatusMessage("status-update-request", {
+            content: "Update processed successfully!",
+            statusType: "success",
+            icon: "✅"
+          });
           setMessages((prev) => [
             ...prev,
             {
@@ -869,14 +891,7 @@ const ProjectPage: React.FC = () => {
     setProjectCreationPhase("creating"); // Mark as creating
     
     // Add status message for project creation
-    setMessages((prev) => [
-      ...prev,
-      {
-        type: "status",
-        content: "Creating your project structure...",
-        statusType: "processing",
-      },
-    ]);
+    addStatusMessage("Creating your project structure...", "processing", "status-project-creation");
 
     try {
       // Initialize the project with the approved PRD
@@ -887,6 +902,13 @@ const ProjectPage: React.FC = () => {
 
       const projectName = result.data.projectName;
 
+      // Update the creation message to remove spinner
+      updateStatusMessage("status-project-creation", {
+        content: "Project structure created successfully!",
+        statusType: "success",
+        icon: "✅"
+      });
+      
       // Update messages to show project creation success
       setMessages((prev) => [
         ...prev,
@@ -917,14 +939,7 @@ const ProjectPage: React.FC = () => {
       setProjectCreationPhase("created");
 
       // Now generate the code for the project using task-based approach
-      setMessages((prev) => [
-        ...prev,
-        {
-          type: "status",
-          content: "Generating code for your project...",
-          statusType: "processing",
-        },
-      ]);
+      addStatusMessage("Generating code for your project...", "processing", "status-project-codegen");
 
       // Call update-project-v2 endpoint to generate the code
       // Get the PRD from messages (it was already generated and approved)

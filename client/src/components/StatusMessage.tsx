@@ -11,7 +11,9 @@ interface StatusMessageProps {
 
 const StatusMessage: React.FC<StatusMessageProps> = ({ content, statusType, icon }) => {
   const getIcon = () => {
-    if (icon) return icon;
+    // If icon is explicitly set (including empty string), use it
+    if (icon !== undefined) return icon;
+    // Otherwise use default icons based on status type
     switch (statusType) {
       case "processing":
         return "🔄";
@@ -32,9 +34,11 @@ const StatusMessage: React.FC<StatusMessageProps> = ({ content, statusType, icon
         <CubeLoader text={content} />
       ) : (
         <>
-          <IconWrapper statusType={statusType}>
-            <Icon>{getIcon()}</Icon>
-          </IconWrapper>
+          {getIcon() && (
+            <IconWrapper statusType={statusType}>
+              <Icon>{getIcon()}</Icon>
+            </IconWrapper>
+          )}
           <Content>{content}</Content>
         </>
       )}
