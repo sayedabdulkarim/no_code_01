@@ -1042,6 +1042,7 @@ const Terminal: React.FC<TerminalProps> = ({
       let taskBuffer: string[] = [];
       let isCollectingTasks = false;
       let createdTasksCount = 0;
+      let lastStartedTaskId = 0;
       
       socketRef.current.on('output', (data: string) => {
         // Check for task creation message
@@ -1081,6 +1082,7 @@ const Terminal: React.FC<TerminalProps> = ({
         if (taskMatch) {
           const taskId = parseInt(taskMatch[1]);
           const taskTitle = taskMatch[2].trim();
+          lastStartedTaskId = taskId;  // Store the last started task ID
           
           // Task is starting
           window.dispatchEvent(new CustomEvent('project:status', { 
@@ -1095,16 +1097,24 @@ const Terminal: React.FC<TerminalProps> = ({
         // Check for task completion
         const completedMatch = data.match(/✓ Completed: (.+)/);
         if (completedMatch) {
-          // Try to extract task ID from the title or use the most recent one
           const taskTitle = completedMatch[1];
-          // For now, we'll use task ID 1 since we saw it's Task 1/1
-          window.dispatchEvent(new CustomEvent('project:status', { 
-            detail: { 
-              stage: 'task_completed',
-              taskId: 1,
-              taskTitle: taskTitle
-            } 
-          }));
+          // Find the task ID by matching the title with our task buffer
+          let taskId = taskBuffer.findIndex(t => t === taskTitle.replace(/\.\.\.$/, '')) + 1;
+          
+          // If we can't find it in the buffer, try to use the last started task ID
+          if (taskId === 0 && lastStartedTaskId) {
+            taskId = lastStartedTaskId;
+          }
+          
+          if (taskId > 0) {
+            window.dispatchEvent(new CustomEvent('project:status', { 
+              detail: { 
+                stage: 'task_completed',
+                taskId: taskId,
+                taskTitle: taskTitle
+              } 
+            }));
+          }
         }
       });
 

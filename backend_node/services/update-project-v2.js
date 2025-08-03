@@ -414,8 +414,11 @@ router.post("/update-project-v2", async (req, res) => {
     console.log('========================================\n');
     
     // Check if this is a simple change that doesn't need build validation
-    // Changed from > 0.7 to >= 0.7 to include medium confidence cases
-    if (isUpdate && !changeAnalysis.needsBuild && changeAnalysis.confidence >= 0.7) {
+    // Only skip for updates, not initial creation
+    // Also check if this is actually a simple change (no complex features)
+    const isInitialCreation = requirements.length > 500; // PRDs are typically long
+    
+    if (isUpdate && !isInitialCreation && !changeAnalysis.needsBuild && changeAnalysis.confidence >= 0.7) {
       skipBuildValidation = true;
       
       if (socket) {
