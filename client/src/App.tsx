@@ -1,8 +1,7 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { ThemeProvider } from '@emotion/react';
 import styled from '@emotion/styled';
-import { darkTheme } from './theme';
+import { ThemeProvider } from './context/ThemeContext';
 import Header from './components/Header';
 import HomePage from './pages/HomePage';
 import ProjectPage from './pages/ProjectPage';
@@ -25,7 +24,7 @@ const MainContent = styled.main`
 
 function App() {
   return (
-    <ThemeProvider theme={darkTheme}>
+    <ThemeProvider>
       <AppContainer>
         <Header />
         <MainContent>

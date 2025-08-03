@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "no-code-framework": {
+    "synth-ai": {
       "command": "node",
       "args": ["./mcp/server.js"],
       "env": {

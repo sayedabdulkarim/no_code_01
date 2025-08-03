@@ -33,3 +33,19 @@ export const darkTheme = {
     lg: "24px",
   },
 };
+
+export const lightTheme = {
+  colors: {
+    background: "#f5f5f5",
+    surface: "#ffffff",
+    primary: "#0066cc",
+    text: "#1e1e1e",
+    textSecondary: "#666666",
+    border: "#e0e0e0",
+  },
+  spacing: {
+    sm: "8px",
+    md: "16px",
+    lg: "24px",
+  },
+};
