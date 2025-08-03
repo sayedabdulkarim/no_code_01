@@ -542,6 +542,12 @@ const ProjectPage: React.FC = () => {
               statusType: "success",
               icon: "✅"
             });
+            // Update the update request message if it exists
+            updateStatusMessage("status-update-request", {
+              content: "Update request processed successfully!",
+              statusType: "success",
+              icon: "✅"
+            });
             // Don't enable tabs yet - wait for server_ready
             break;
             
@@ -556,6 +562,12 @@ const ProjectPage: React.FC = () => {
             });
             updateStatusMessage("status-build-check", {
               content: "Quality checks completed with warnings",
+              statusType: "info",
+              icon: "⚠️"
+            });
+            // Update the update request message if it exists
+            updateStatusMessage("status-update-request", {
+              content: "Update completed with warnings",
               statusType: "info",
               icon: "⚠️"
             });
@@ -736,7 +748,7 @@ const ProjectPage: React.FC = () => {
           setGeneratingMessage("");
           // Update the processing message to remove spinner
           updateStatusMessage("status-update-request", {
-            content: "Update processed successfully!",
+            content: "Update request processed successfully!",
             statusType: "success",
             icon: "✅"
           });
