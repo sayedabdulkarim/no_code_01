@@ -7,7 +7,11 @@
  * @returns {boolean} True if in production
  */
 export const isProduction = (): boolean => {
-  return process.env.NODE_ENV === 'production';
+  // Check URL parameter for testing production mode locally
+  const urlParams = new URLSearchParams(window.location.search);
+  const forceProduction = urlParams.get('forceProduction') === 'true';
+  
+  return process.env.NODE_ENV === 'production' || forceProduction;
 };
 
 /**

@@ -68,10 +68,17 @@ function getApiKeyWithFallback(socketId) {
     return userKey;
   }
   
+  // Check if we're forcing production mode for testing
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.FORCE_PRODUCTION_MODE === 'true';
+  
   // In development mode, fallback to environment variable
-  if (process.env.NODE_ENV !== 'production' && process.env.ANTHROPIC_API_KEY) {
+  if (!isProduction && process.env.ANTHROPIC_API_KEY) {
     console.log('Using fallback API key from environment (development mode)');
     return process.env.ANTHROPIC_API_KEY;
+  }
+  
+  if (isProduction) {
+    console.log('Production mode: No API key fallback - user must provide key');
   }
   
   // In production, no fallback - user must provide key
