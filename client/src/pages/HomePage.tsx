@@ -3,6 +3,7 @@ import styled from '@emotion/styled';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ProjectCard from '../components/ProjectCard';
+import Footer from '../components/Footer';
 
 const PageContainer = styled.div`
   width: 100%;
@@ -54,13 +55,21 @@ const EmptyState = styled.div`
 
 const ChatInputContainer = styled.div`
   position: fixed;
-  bottom: 0;
+  bottom: 60px; // Height of footer
   left: 0;
   right: 0;
   background: ${props => props.theme.colors.surface};
   border-top: 1px solid ${props => props.theme.colors.border};
   padding: 24px;
   z-index: 10;
+`;
+
+const FooterContainer = styled.div`
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9;
 `;
 
 const ChatInputWrapper = styled.div`
@@ -338,6 +347,10 @@ const HomePage: React.FC = () => {
           </SendButton>
         </ChatInputWrapper>
       </ChatInputContainer>
+      
+      <FooterContainer>
+        <Footer />
+      </FooterContainer>
     </PageContainer>
   );
 };
