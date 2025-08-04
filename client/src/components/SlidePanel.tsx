@@ -42,10 +42,11 @@ const PanelContainer = styled.div<{ isOpen: boolean }>`
   border-left: 1px solid ${props => props.theme.colors.border};
   z-index: 1000;
   transform: translateX(${props => props.isOpen ? '0' : '100%'});
-  animation: ${props => props.isOpen ? slideIn : slideOut} 0.3s ease-in-out;
+  transition: transform 0.3s ease-in-out;
   display: flex;
   flex-direction: column;
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+  visibility: ${props => props.isOpen ? 'visible' : 'hidden'};
 
   @media (max-width: 768px) {
     width: 100%;
@@ -181,6 +182,19 @@ interface SlidePanelProps {
 }
 
 const SlidePanel: React.FC<SlidePanelProps> = ({ isOpen, onClose }) => {
+  const [hasBeenOpened, setHasBeenOpened] = React.useState(false);
+
+  React.useEffect(() => {
+    if (isOpen && !hasBeenOpened) {
+      setHasBeenOpened(true);
+    }
+  }, [isOpen, hasBeenOpened]);
+
+  // Don't render anything until it's been opened at least once
+  if (!hasBeenOpened && !isOpen) {
+    return null;
+  }
+
   return (
     <>
       <Backdrop isOpen={isOpen} onClick={onClose} />
