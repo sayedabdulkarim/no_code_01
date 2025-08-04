@@ -3,6 +3,7 @@ import styled from '@emotion/styled';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useTheme } from '../context/ThemeContext';
+import SlidePanel from './SlidePanel';
 
 const HeaderContainer = styled.header`
   height: 60px;
@@ -142,6 +143,7 @@ interface RunningProject {
 const Header: React.FC = () => {
   const [runningProjects, setRunningProjects] = useState<RunningProject[]>([]);
   const [stoppingProject, setStoppingProject] = useState<string | null>(null);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
   const { isDarkMode, toggleTheme } = useTheme();
 
   const fetchRunningProjects = async () => {
@@ -224,6 +226,13 @@ const Header: React.FC = () => {
           </svg>
         </IconButton>
         
+        <IconButton onClick={() => setIsPanelOpen(true)} title="Upcoming Features">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+              d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+          </svg>
+        </IconButton>
+        
         <IconButton disabled title="User Profile (Coming Soon)">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
@@ -231,6 +240,8 @@ const Header: React.FC = () => {
           </svg>
         </IconButton>
       </RightSection>
+      
+      <SlidePanel isOpen={isPanelOpen} onClose={() => setIsPanelOpen(false)} />
     </HeaderContainer>
   );
 };
