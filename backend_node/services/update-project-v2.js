@@ -5,6 +5,7 @@ const TaskBasedGeneratorMCP = require("./task-based-generator-mcp");
 const CompilationChecker = require("./compilation-checker");
 const LLMBuildValidator = require("./llm-build-validator");
 const projectManager = require("./project-manager");
+const apiKeyStorage = require("./api-key-storage");
 require("dotenv").config();
 
 const router = express.Router();
@@ -66,14 +67,18 @@ router.post("/update-project-v2", async (req, res) => {
     console.log(`Read PRD for project ${projectName}, length: ${prd.length}`);
     console.log(`PRD preview: ${prd.substring(0, 200)}...`);
     
-    // Check API key
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.error("ANTHROPIC_API_KEY not found in environment");
-      return res.status(500).json({ error: "Claude API key not configured" });
+    // Check API key availability
+    const apiKey = apiKeyStorage.getApiKeyWithFallback(socketId);
+    if (!apiKey) {
+      console.error("No API key available for this session");
+      return res.status(401).json({ 
+        error: "API key required. Please provide your Anthropic API key.",
+        requiresApiKey: true 
+      });
     }
     
-    // Initialize generator with Claude API and MCP support
-    const generator = new TaskBasedGeneratorMCP(process.env.ANTHROPIC_API_KEY);
+    // Initialize generator with MCP support
+    const generator = new TaskBasedGeneratorMCP();
     
     // Notify start
     if (socket) {
@@ -131,7 +136,7 @@ router.post("/update-project-v2", async (req, res) => {
       if (socket) {
         socket.emit('output', '\x1b[36m> Analyzing request intent...\x1b[0m\n');
       }
-      taskResult = await generator.createUpdateTaskList(prd, requirements, projectName);
+      taskResult = await generator.createUpdateTaskList(prd, requirements, projectName, socketId);
     } else {
       // Initial creation - use standard full task list
       taskResult = await generator.createTaskList(prd);
@@ -459,8 +464,8 @@ router.post("/update-project-v2", async (req, res) => {
         socket.emit('output', '\n\x1b[1;33m> Compilation errors detected. Using AI to analyze and fix...\x1b[0m\n');
       }
       
-      const llmValidator = new LLMBuildValidator(process.env.ANTHROPIC_API_KEY);
-      llmValidationResult = await llmValidator.validateAndFix(projectPath, prd, socket);
+      const llmValidator = new LLMBuildValidator();
+      llmValidationResult = await llmValidator.validateAndFix(projectPath, prd, socket, socketId);
     } else {
       llmValidationResult = { success: true };
     }

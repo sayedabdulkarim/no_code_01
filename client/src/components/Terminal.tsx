@@ -1,13 +1,13 @@
 import axios from "axios";
 import React, { useCallback, useEffect, useRef } from "react";
-import { io, Socket } from "socket.io-client";
+import { Socket } from "socket.io-client";
 import { Terminal as XTerm } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import { WebLinksAddon } from "xterm-addon-web-links";
-// import { CommandSuggestion } from "../utils/commandFixerAgent";
 import styled from "@emotion/styled";
 import "xterm/css/xterm.css";
 import { CommandSuggestion } from "../types/terminal";
+import { useSocket } from "../context/SocketContext";
 
 // Style for the terminal container
 const TerminalContainer = styled.div`
@@ -51,9 +51,9 @@ const Terminal: React.FC<TerminalProps> = ({
   runCommand,
   onSocketReady,
 }) => {
+  const { socket, isConnected } = useSocket();
   const terminalRef = useRef<HTMLDivElement>(null);
   const terminalInstance = useRef<XTerm | null>(null);
-  const socketRef = useRef<Socket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const processingErrorRef = useRef<boolean>(false);
   const lastCommandRef = useRef<string>("");
@@ -74,22 +74,22 @@ const Terminal: React.FC<TerminalProps> = ({
       return;
     }
 
-    if (socketRef.current && terminalInstance.current) {
+    if (socket && terminalInstance.current) {
       try {
         // Write the command to terminal
         terminalInstance.current.write(command);
         // Send command to server
-        socketRef.current.emit("input", command);
+        socket.emit("input", command);
         // Also send an Enter key to execute
-        socketRef.current.emit("input", "\r");
+        socket.emit("input", "\r");
       } catch (e) {
         console.error("Error executing command:", e);
         // Try to recover if possible
         const recoveryTimeout = setTimeout(() => {
           // Check if references are still valid
-          if (socketRef.current && command) {
+          if (socket && command) {
             try {
-              socketRef.current.emit("input", command + "\r");
+              socket.emit("input", command + "\r");
             } catch (innerE) {
               console.error("Retry command execution failed:", innerE);
             }
@@ -978,8 +978,8 @@ const Terminal: React.FC<TerminalProps> = ({
                 rows: terminalInstance.current.rows,
               });
 
-              if (socketRef.current) {
-                socketRef.current.emit("resize", {
+              if (socket) {
+                socket.emit("resize", {
                   cols: terminalInstance.current.cols,
                   rows: terminalInstance.current.rows,
                 });
@@ -1001,30 +1001,23 @@ const Terminal: React.FC<TerminalProps> = ({
       }
     };
 
-    // Initialize socket connection with reconnection logic
-    try {
-      // Set up socket with reconnection options
-      socketRef.current = io("http://localhost:5001", {
-        reconnectionAttempts: 5,
-        reconnectionDelay: 2000,
-        timeout: 10000,
-      });
-
-      console.log("Socket connection initializing...");
+    // Socket event handlers setup (using centralized socket)
+    if (socket && isConnected) {
+      console.log("Setting up terminal socket event handlers...");
 
       // Handle connection events
-      socketRef.current.on("connect", () => {
+      socket.on("connect", () => {
         console.log(
           "Socket connected successfully with ID:",
-          socketRef.current?.id
+          socket?.id
         );
         terminalInstance.current?.write(
           "\r\n\x1b[32m> Connected to server.\x1b[0m\r\n"
         );
 
         // Fix nvm PREFIX issue
-        if (socketRef.current) {
-          socketRef.current.emit("input", "unset PREFIX\r");
+        if (socket) {
+          socket.emit("input", "unset PREFIX\r");
           console.log("Unset PREFIX to fix nvm compatibility");
         }
 
@@ -1032,7 +1025,7 @@ const Terminal: React.FC<TerminalProps> = ({
       });
       
       // Listen for project status events and dispatch them as custom events
-      socketRef.current.on('project:status', (data) => {
+      socket.on('project:status', (data) => {
         console.log('Terminal received project:status event:', data);
         // Dispatch a custom event that ProjectPage can listen to
         window.dispatchEvent(new CustomEvent('project:status', { detail: data }));
@@ -1044,7 +1037,7 @@ const Terminal: React.FC<TerminalProps> = ({
       let createdTasksCount = 0;
       let lastStartedTaskId = 0;
       
-      socketRef.current.on('output', (data: string) => {
+      socket.on('output', (data: string) => {
         // Check for task creation message
         const createdMatch = data.match(/✓ Created (\d+) tasks?/);
         if (createdMatch) {
@@ -1118,7 +1111,7 @@ const Terminal: React.FC<TerminalProps> = ({
         }
       });
 
-      socketRef.current.on("connect_error", (err) => {
+      socket.on("connect_error", (err) => {
         console.error("Socket connection error:", err);
         terminalInstance.current?.write(
           `\r\n\x1b[31m> Connection error: ${err.message}\x1b[0m\r\n`
@@ -1128,7 +1121,7 @@ const Terminal: React.FC<TerminalProps> = ({
         );
       });
 
-      socketRef.current.on("disconnect", (reason) => {
+      socket.on("disconnect", (reason) => {
         console.log("Socket disconnected:", reason);
         terminalInstance.current?.write(
           `\r\n\x1b[33m> Disconnected from server: ${reason}\x1b[0m\r\n`
@@ -1136,11 +1129,11 @@ const Terminal: React.FC<TerminalProps> = ({
 
         if (reason === "io server disconnect") {
           // Server initiated the disconnect, try to reconnect manually
-          socketRef.current?.connect();
+          socket?.connect();
         }
       });
 
-      socketRef.current.on("reconnect", (attemptNumber) => {
+      socket.on("reconnect", (attemptNumber) => {
         console.log("Socket reconnected after", attemptNumber, "attempts");
         terminalInstance.current?.write(
           `\r\n\x1b[32m> Reconnected to server after ${attemptNumber} attempts\x1b[0m\r\n`
@@ -1148,14 +1141,14 @@ const Terminal: React.FC<TerminalProps> = ({
         addMessage("Terminal connection restored.", false);
       });
 
-      socketRef.current.on("reconnect_attempt", (attemptNumber) => {
+      socket.on("reconnect_attempt", (attemptNumber) => {
         console.log("Socket reconnection attempt:", attemptNumber);
         terminalInstance.current?.write(
           `\r\n\x1b[33m> Attempting to reconnect (${attemptNumber})...\x1b[0m\r\n`
         );
       });
 
-      socketRef.current.on("reconnect_failed", () => {
+      socket.on("reconnect_failed", () => {
         console.log("Socket reconnection failed");
         terminalInstance.current?.write(
           "\r\n\x1b[31m> Reconnection failed. Please refresh the page.\x1b[0m\r\n"
@@ -1164,9 +1157,6 @@ const Terminal: React.FC<TerminalProps> = ({
           "Terminal connection failed. Please refresh the page to try again."
         );
       });
-    } catch (err) {
-      console.error("Error initializing socket connection:", err);
-      addErrorMessage("Failed to initialize terminal connection");
     }
 
     // Properly clean up any existing terminal instance
@@ -1266,8 +1256,8 @@ const Terminal: React.FC<TerminalProps> = ({
                     terminalInstance.current.cols &&
                     terminalInstance.current.rows
                   ) {
-                    if (socketRef.current) {
-                      socketRef.current.emit("resize", {
+                    if (socket) {
+                      socket.emit("resize", {
                         cols: terminalInstance.current.cols,
                         rows: terminalInstance.current.rows,
                       });
@@ -1304,8 +1294,8 @@ const Terminal: React.FC<TerminalProps> = ({
     }
 
     // Handle terminal output from server with improved display and error detection
-    if (socketRef.current) {
-      socketRef.current.on("output", (data: string) => {
+    if (socket) {
+      socket.on("output", (data: string) => {
         if (terminalInstance.current) {
           // Write the data directly to the terminal without processing
           // The PTY process will send proper ANSI escape sequences
@@ -1329,8 +1319,8 @@ const Terminal: React.FC<TerminalProps> = ({
     // Handle user input
     if (terminalInstance.current) {
       terminalInstance.current.onData((data: string) => {
-        if (socketRef.current) {
-          socketRef.current.emit("input", data); // Track command as user types - improved tracking
+        if (socket) {
+          socket.emit("input", data); // Track command as user types - improved tracking
           if (data === "\r") {
             // Enter key pressed - save the current command as the last command and reset
             const trimmedCommand = currentCommandRef.current.trim();
@@ -1478,11 +1468,10 @@ const Terminal: React.FC<TerminalProps> = ({
       }
 
       // Cleanup socket connection
-      if (socketRef.current) {
+      if (socket) {
         try {
-          socketRef.current.off('project:status'); // Remove the listener
-          socketRef.current.disconnect();
-          socketRef.current = null;
+          socket.off('project:status'); // Remove the listener
+          socket.disconnect();
           console.log("Socket disconnected");
         } catch (socketErr) {
           console.error("Error disconnecting socket:", socketErr);
@@ -1530,17 +1519,17 @@ const Terminal: React.FC<TerminalProps> = ({
 
   // Notify parent component when socket is ready
   useEffect(() => {
-    if (socketRef.current && onSocketReady) {
-      socketRef.current.on("connect", () => {
-        console.log("Socket connected with ID:", socketRef.current?.id);
-        if (socketRef.current?.id) {
-          onSocketReady(socketRef.current.id);
+    if (socket && onSocketReady) {
+      socket.on("connect", () => {
+        console.log("Socket connected with ID:", socket?.id);
+        if (socket?.id) {
+          onSocketReady(socket.id);
         }
       });
 
       // If socket is already connected, notify right away
-      if (socketRef.current.connected && socketRef.current.id) {
-        onSocketReady(socketRef.current.id);
+      if (socket.connected && socket.id) {
+        onSocketReady(socket.id);
       }
     }
   }, [onSocketReady]);

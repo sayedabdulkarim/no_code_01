@@ -4,8 +4,7 @@ const fs = require("fs/promises");
 const path = require("path");
 
 class TaskBasedGeneratorMCP {
-  constructor(apiKey) {
-    this.apiKey = apiKey;
+  constructor() {
     this.claudeService = new ClaudeServiceProduction();
     this.maxRetries = 3;
   }
@@ -13,7 +12,7 @@ class TaskBasedGeneratorMCP {
   /**
    * Classify user intent for better update handling
    */
-  async classifyUpdateIntent(requirements) {
+  async classifyUpdateIntent(requirements, socketId) {
     const prompt = `
 Analyze this user request and classify the PRIMARY intent:
 
@@ -47,7 +46,7 @@ Return ONLY a valid JSON object:
 `;
 
     try {
-      const response = await this.claudeService.generateText(prompt);
+      const response = await this.claudeService.generateText(prompt, socketId);
       const classification = this.parseJSON(response);
       console.log(`📊 [Task Generator] Intent classification:`, classification);
       return classification;
@@ -61,11 +60,11 @@ Return ONLY a valid JSON object:
   /**
    * Create update task list for existing projects (with MCP awareness)
    */
-  async createUpdateTaskList(prd, newRequirements, projectName) {
+  async createUpdateTaskList(prd, newRequirements, projectName, socketId) {
     console.log(`Creating update task list for project: ${projectName}`);
     
     // First, classify the intent
-    const classification = await this.classifyUpdateIntent(newRequirements);
+    const classification = await this.classifyUpdateIntent(newRequirements, socketId);
     console.log(`🎯 [Task Generator] Update classified as: ${classification.intent} (confidence: ${classification.confidence})`);
     
     // Store classification for later use
@@ -219,7 +218,7 @@ Guidelines:
 `;
 
     try {
-      const response = await this.claudeService.generateText(prompt);
+      const response = await this.claudeService.generateText(prompt, socketId);
       return this.parseJSON(response);
     } catch (error) {
       console.error("Error creating task list:", error);
@@ -418,7 +417,7 @@ CRITICAL RULES:
 `;
 
     try {
-      const response = await this.claudeService.generateText(prompt);
+      const response = await this.claudeService.generateText(prompt, socketId);
       const parsed = this.parseJSON(response);
       
       // Log what we got

@@ -7,6 +7,7 @@ const cors = require("cors");
 const axios = require("axios"); // Make sure axios is installed
 const executeShellCommand = require("./shell-command-executor");
 const { commandFixerAgent } = require("./utils/commandFixerAgent");
+const apiKeyStorage = require("./services/api-key-storage");
 const generateRouter = require("./routes/generate");
 const generateV2Router = require("./routes/generate-v2");
 const prdRouter = require("./routes/prd");
@@ -21,6 +22,7 @@ const listProjectsRouter = require("./services/list-projects");
 const fixPageIntegrationRouter = require("./services/fix-page-integration");
 const buildValidationRouter = require("./routes/build-validation");
 const fileSystemRouter = require("./routes/file-system");
+const validateApiKeyRouter = require("./routes/validate-api-key");
 
 require("dotenv").config(); // Load environment variables
 
@@ -62,6 +64,7 @@ app.use("/api", listProjectsRouter);
 app.use("/api", fixPageIntegrationRouter);
 app.use("/api", buildValidationRouter);
 app.use(fileSystemRouter);
+app.use("/api", validateApiKeyRouter);
 
 // Store io reference for other routes
 app.set("io", io);
@@ -180,6 +183,23 @@ io.on("connection", (socket) => {
     },
   });
 
+  // Handle API key storage from client
+  socket.on("store-api-key", (data) => {
+    try {
+      const { apiKey } = data;
+      if (apiKey) {
+        apiKeyStorage.setApiKey(socket.id, apiKey);
+        socket.emit("api-key-stored", { success: true });
+        console.log(`API key stored for client: ${socket.id}`);
+      } else {
+        socket.emit("api-key-stored", { success: false, error: "No API key provided" });
+      }
+    } catch (error) {
+      console.error("Error storing API key:", error);
+      socket.emit("api-key-stored", { success: false, error: error.message });
+    }
+  });
+
   // Handle terminal input from client
   socket.on("input", (data) => {
     ptyProcess.write(data);
@@ -198,6 +218,8 @@ io.on("connection", (socket) => {
   // Clean up on disconnect
   socket.on("disconnect", () => {
     console.log("Client disconnected");
+    // Remove API key from storage
+    apiKeyStorage.removeApiKey(socket.id);
     ptyProcess.kill();
   });
 });

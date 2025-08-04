@@ -8,11 +8,10 @@ const CSSConfigValidator = require('./css-config-validator');
 const FontFixer = require('./font-fixer');
 const ConfigFileFixer = require('./config-file-fixer');
 const ContextPatternFixer = require('./context-pattern-fixer');
+const apiKeyStorage = require('./api-key-storage');
 
 class LLMBuildValidator {
-  constructor(apiKey) {
-    this.apiKey = apiKey;
-    this.anthropic = new Anthropic({ apiKey: this.apiKey });
+  constructor() {
     this.claudeServiceMCP = new ClaudeServiceProduction(); // MCP-enabled service for error fixing
     this.maxAttempts = 3;
     this.quickFixChecker = new QuickFixChecker();
@@ -22,10 +21,19 @@ class LLMBuildValidator {
     this.contextFixer = new ContextPatternFixer();
   }
 
+  // Get Anthropic client with user's API key
+  getAnthropicClient(socketId) {
+    const apiKey = apiKeyStorage.getApiKeyWithFallback(socketId);
+    if (!apiKey) {
+      throw new Error("No API key available. Please provide your Anthropic API key.");
+    }
+    return new Anthropic({ apiKey });
+  }
+
   /**
    * Main validation loop - build, check errors, fix with LLM, repeat
    */
-  async validateAndFix(projectPath, prd, socket) {
+  async validateAndFix(projectPath, prd, socket, socketId) {
     let attempt = 0;
     
     // Extract project name from path for MCP context

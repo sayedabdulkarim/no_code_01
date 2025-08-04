@@ -19,6 +19,9 @@ export default function Home() {
             <span className="relative z-10">Select colors and get their hex codes instantly</span>
             <span className="absolute bottom-0 left-0 w-full h-0.5 bg-yellow-400 transform scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
           </p>
+          <p className="text-gray-600 mt-4 max-w-2xl mx-auto">
+            Our intuitive color picker provides a full spectrum of colors at your fingertips. Whether you're a designer, developer, or creative professional, you can easily select colors, view their hex codes in real-time, and copy them with a single click. Use the interactive color spectrum or choose from preset colors to find the perfect shade for your project. The tool works entirely in your browser and provides instant feedback as you explore different colors.
+          </p>
         </div>
 
         {/* Sample Colors Display */}

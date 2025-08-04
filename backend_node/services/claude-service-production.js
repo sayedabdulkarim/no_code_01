@@ -1,6 +1,7 @@
 // Production Claude Service with Real MCP Integration
 const Anthropic = require('@anthropic-ai/sdk');
 const { getMCPClient } = require('./mcp-client');
+const apiKeyStorage = require('./api-key-storage');
 require("dotenv").config();
 
 class ClaudeServiceError extends Error {
@@ -12,20 +13,22 @@ class ClaudeServiceError extends Error {
 
 class ClaudeServiceProduction {
   constructor() {
-    this.apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!this.apiKey) {
+    // MCP client will be initialized when needed
+    this.mcpClient = null;
+  }
+
+  // Get Anthropic client with user's API key
+  getAnthropicClient(socketId) {
+    const apiKey = apiKeyStorage.getApiKeyWithFallback(socketId);
+    if (!apiKey) {
       throw new ClaudeServiceError(
-        "ANTHROPIC_API_KEY environment variable not set"
+        "No API key available. Please provide your Anthropic API key."
       );
     }
 
-    // Initialize Anthropic client
-    this.anthropic = new Anthropic({
-      apiKey: this.apiKey,
+    return new Anthropic({
+      apiKey: apiKey,
     });
-
-    // MCP client will be initialized when needed
-    this.mcpClient = null;
   }
 
   // Initialize MCP client if not already done
@@ -39,7 +42,7 @@ class ClaudeServiceProduction {
   }
 
   // Generate code with MCP context for project updates
-  async generateCodeForProject(requirements, projectName) {
+  async generateCodeForProject(requirements, projectName, socketId) {
     try {
       console.log('\n🎯 [Claude Service] Starting MCP-enhanced code generation');
       console.log(`📁 [Claude Service] Project: ${projectName}`);
@@ -82,7 +85,8 @@ class ClaudeServiceProduction {
       IMPORTANT: Always read relevant files before generating code to ensure compatibility.`;
 
       // Create conversation with Claude
-      const message = await this.anthropic.messages.create({
+      const anthropic = this.getAnthropicClient(socketId);
+      const message = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20241022",
         max_tokens: 4000,
         temperature: 0.7,
@@ -213,7 +217,7 @@ Please analyze the existing code and generate new code that integrates seamlessl
           allMessages.push({ role: "user", content: toolResults });
           
           // Get Claude's response after processing tool results
-          currentResponse = await this.anthropic.messages.create({
+          currentResponse = await anthropic.messages.create({
             model: "claude-3-5-sonnet-20241022",
             max_tokens: 4000,
             temperature: 0.7,
@@ -263,7 +267,7 @@ Please analyze the existing code and generate new code that integrates seamlessl
   }
 
   // Fix build errors with MCP context - comprehensive method for build validator
-  async fixBuildErrorsWithMCP(buildOutput, prd, projectName) {
+  async fixBuildErrorsWithMCP(buildOutput, prd, projectName, socketId) {
     try {
       console.log('\n🔍 [Claude Service] Starting MCP-enhanced error fixing');
       console.log(`📁 [Claude Service] Project: ${projectName}`);
@@ -326,7 +330,8 @@ Return ONLY a valid JSON object with this structure:
 }`;
 
       // Create conversation with Claude using MCP tools
-      const message = await this.anthropic.messages.create({
+      const anthropic = this.getAnthropicClient(socketId);
+      const message = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20241022",
         max_tokens: 8000,
         temperature: 0.3,
@@ -460,7 +465,7 @@ Return ONLY a valid JSON object with this structure:
           allMessages.push({ role: "assistant", content: assistantContent });
           allMessages.push({ role: "user", content: toolResults });
           
-          currentResponse = await this.anthropic.messages.create({
+          currentResponse = await anthropic.messages.create({
             model: "claude-3-5-sonnet-20241022",
             max_tokens: 8000,
             temperature: 0.3,
@@ -536,9 +541,10 @@ Return ONLY a valid JSON object with this structure:
   }
 
   // Original generateText method for backward compatibility
-  async generateText(prompt) {
+  async generateText(prompt, socketId) {
     try {
-      const message = await this.anthropic.messages.create({
+      const anthropic = this.getAnthropicClient(socketId);
+      const message = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20241022",
         max_tokens: 2000,
         temperature: 0.7,
