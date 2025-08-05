@@ -26,12 +26,27 @@ const TerminalWithHeader: React.FC<TerminalWithHeaderProps> = ({
   socketId,
   loading,
 }) => {
+  // Show "Connecting..." initially instead of "Disconnected"
+  const getConnectionText = () => {
+    if (socketId === null) {
+      return "Connecting...";
+    }
+    return socketId ? "Connected" : "Disconnected";
+  };
+
+  const getStatusDotState = () => {
+    if (socketId === null) {
+      return "connecting";
+    }
+    return socketId ? "connected" : "disconnected";
+  };
+
   return (
     <Container>
       <Header>
         <ConnectionStatus>
-          <StatusDot active={!!socketId} />
-          <span>Terminal {socketId ? "(Connected)" : "(Disconnected)"}</span>
+          <StatusDot status={getStatusDotState()} />
+          <span>Terminal ({getConnectionText()})</span>
         </ConnectionStatus>
         {loading && (
           <StatusMessage>Project initialization in progress...</StatusMessage>
@@ -71,13 +86,30 @@ const ConnectionStatus = styled.div`
   font-size: 14px;
 `;
 
-const StatusDot = styled.span<{ active: boolean }>`
+const StatusDot = styled.span<{ status: "connecting" | "connected" | "disconnected" }>`
   width: 10px;
   height: 10px;
   border-radius: 50%;
   margin-right: 8px;
-  background-color: ${(props) => (props.active ? "#4CAF50" : "#9e9e9e")};
+  background-color: ${(props) => {
+    switch (props.status) {
+      case "connected":
+        return "#4CAF50";
+      case "connecting":
+        return "#FFA726";
+      case "disconnected":
+        return "#9e9e9e";
+    }
+  }};
   display: inline-block;
+  ${(props) => props.status === "connecting" && `
+    animation: pulse 1.5s ease-in-out infinite;
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+  `}
 `;
 
 const StatusMessage = styled.span`
