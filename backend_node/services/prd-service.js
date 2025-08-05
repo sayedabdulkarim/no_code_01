@@ -2,8 +2,8 @@
 const { LLMService } = require("./claude-service");
 
 class PRDService {
-  constructor() {
-    this.llmService = new LLMService();
+  constructor(apiKey = null) {
+    this.llmService = new LLMService(apiKey);
   }
 
   // Generate a PRD based on the user's requirement

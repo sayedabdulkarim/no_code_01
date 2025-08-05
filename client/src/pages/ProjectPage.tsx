@@ -709,7 +709,7 @@ const ProjectPage: React.FC = () => {
         // Generate PRD for new project
         const prdResult = await axios.post<PRDResponse>(
           API_ENDPOINTS.GENERATE_PRD,
-          { requirement: message }
+          { requirement: message, socketId }
         );
 
         setMessages((prev) => [
