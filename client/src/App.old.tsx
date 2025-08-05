@@ -3,6 +3,7 @@ import styled from "@emotion/styled";
 import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
 import "./App.css";
+import { API_ENDPOINTS } from "./config/api";
 import { ChatThread } from "./components/ChatThread";
 import { EditorPanel } from "./components/EditorPanel";
 import { Layout, WorkspaceLayout } from "./components/Layout";
@@ -538,7 +539,7 @@ function App() {
   const handleClearHistory = async (projectName: string) => {
     try {
       const result = await axios.delete(
-        `${API_BASE_URL}/api/clear-project-history/${projectName}`
+        API_ENDPOINTS.CLEAR_PROJECT_HISTORY(projectName)
       );
 
       if (result.data && result.data.message) {

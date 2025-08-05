@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from '@emotion/styled';
 import MonacoEditor from '@monaco-editor/react';
 import axios from 'axios';
+import { API_ENDPOINTS } from '../config/api';
 
 interface EditorProps {
   projectName?: string;
@@ -44,7 +45,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
     
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/project-files/${projectName}`);
+      const response = await axios.get(API_ENDPOINTS.PROJECT_FILES(projectName));
       setFileTree(response.data.files);
       // Expand src directory by default
       setExpandedDirs(new Set(['src']));
@@ -78,7 +79,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
 
     try {
       const response = await axios.get(
-        `${API_BASE_URL}/api/project-file/${projectName}/${filePath}`
+        API_ENDPOINTS.PROJECT_FILE(projectName, filePath)
       );
       
       const newOpenFiles = new Map(openFiles);
@@ -124,7 +125,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
       
       try {
         await axios.put(
-          `${API_BASE_URL}/api/project-file/${projectName}/${filePath}`,
+          API_ENDPOINTS.PROJECT_FILE(projectName, filePath),
           { content }
         );
         
@@ -189,7 +190,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
     setDownloading(true);
     try {
       const response = await axios.get(
-        `${API_BASE_URL}/api/download-project/${projectName}`,
+        API_ENDPOINTS.DOWNLOAD_PROJECT(projectName),
         {
           responseType: 'blob',
         }

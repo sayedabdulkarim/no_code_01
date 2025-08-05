@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import styled from '@emotion/styled';
+import { API_ENDPOINTS } from '../config/api';
 
 const Container = styled.div`
   background: #2a2a2a;
@@ -104,7 +105,7 @@ const CodeGenerationProgress: React.FC<CodeGenerationProgressProps> = ({ project
     const fetchProgress = async () => {
       try {
         const response = await axios.get(
-          `${API_BASE_URL}/api/project-progress/${projectName}`
+          API_ENDPOINTS.PROJECT_PROGRESS(projectName)
         );
         
         if (response.data.status !== 'not_found') {
