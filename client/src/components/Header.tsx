@@ -148,7 +148,7 @@ const Header: React.FC = () => {
 
   const fetchRunningProjects = async () => {
     try {
-      const response = await axios.get('http://localhost:5001/api/running-projects');
+      const response = await axios.get('${API_BASE_URL}/api/running-projects');
       setRunningProjects(response.data.projects || []);
     } catch (error) {
       console.error('Error fetching running projects:', error);
@@ -164,7 +164,7 @@ const Header: React.FC = () => {
   const handleStopProject = async (projectName: string) => {
     setStoppingProject(projectName);
     try {
-      await axios.post('http://localhost:5001/api/stop-project', { projectName });
+      await axios.post('${API_BASE_URL}/api/stop-project', { projectName });
       await fetchRunningProjects();
     } catch (error) {
       console.error('Error stopping project:', error);

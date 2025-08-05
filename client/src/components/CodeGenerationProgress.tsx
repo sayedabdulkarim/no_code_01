@@ -104,7 +104,7 @@ const CodeGenerationProgress: React.FC<CodeGenerationProgressProps> = ({ project
     const fetchProgress = async () => {
       try {
         const response = await axios.get(
-          `http://localhost:5001/api/project-progress/${projectName}`
+          `${API_BASE_URL}/api/project-progress/${projectName}`
         );
         
         if (response.data.status !== 'not_found') {

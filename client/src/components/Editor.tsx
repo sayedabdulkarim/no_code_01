@@ -44,7 +44,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
     
     setLoading(true);
     try {
-      const response = await axios.get(`http://localhost:5001/api/project-files/${projectName}`);
+      const response = await axios.get(`${API_BASE_URL}/api/project-files/${projectName}`);
       setFileTree(response.data.files);
       // Expand src directory by default
       setExpandedDirs(new Set(['src']));
@@ -78,7 +78,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
 
     try {
       const response = await axios.get(
-        `http://localhost:5001/api/project-file/${projectName}/${filePath}`
+        `${API_BASE_URL}/api/project-file/${projectName}/${filePath}`
       );
       
       const newOpenFiles = new Map(openFiles);
@@ -124,7 +124,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
       
       try {
         await axios.put(
-          `http://localhost:5001/api/project-file/${projectName}/${filePath}`,
+          `${API_BASE_URL}/api/project-file/${projectName}/${filePath}`,
           { content }
         );
         
@@ -189,7 +189,7 @@ const Editor: React.FC<EditorProps> = ({ projectName }) => {
     setDownloading(true);
     try {
       const response = await axios.get(
-        `http://localhost:5001/api/download-project/${projectName}`,
+        `${API_BASE_URL}/api/download-project/${projectName}`,
         {
           responseType: 'blob',
         }

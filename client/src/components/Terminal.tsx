@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef } from "react";
 import { Socket } from "socket.io-client";
 import { Terminal as XTerm } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
+import { API_ENDPOINTS } from "../config/api";
 import { WebLinksAddon } from "xterm-addon-web-links";
 import styled from "@emotion/styled";
 import "xterm/css/xterm.css";
@@ -608,7 +609,7 @@ const Terminal: React.FC<TerminalProps> = ({
 
                       // Call our backend API instead of direct command fixer
                       const response = await axios.post(
-                        "http://localhost:5001/api/fix-command",
+                        API_ENDPOINTS.FIX_COMMAND,
                         {
                           command: lastCommandRef.current,
                         }
@@ -659,7 +660,7 @@ const Terminal: React.FC<TerminalProps> = ({
 
                           // Call our backend API with the simplified command
                           const response = await axios.post(
-                            "http://localhost:5001/api/fix-command",
+                            API_ENDPOINTS.FIX_COMMAND,
                             {
                               command: simplifiedCommand,
                             }
@@ -713,7 +714,7 @@ const Terminal: React.FC<TerminalProps> = ({
 
                         // Make one final call to the backend API
                         const response = await axios.post(
-                          "http://localhost:5001/api/fix-command",
+                          API_ENDPOINTS.FIX_COMMAND,
                           {
                             command: lastCommandRef.current,
                           }

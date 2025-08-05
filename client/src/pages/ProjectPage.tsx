@@ -9,6 +9,7 @@ import GeneratingStatus from "../components/GeneratingStatus";
 import CubeLoader from "../components/CubeLoader";
 import { Message } from "../types/chat";
 import { CommandSuggestion } from "../types/terminal";
+import { API_ENDPOINTS } from "../config/api";
 
 const PageContainer = styled.div`
   width: 100%;
@@ -174,7 +175,7 @@ const ProjectPage: React.FC = () => {
     try {
       // Get project path from the backend
       const projectsResponse = await axios.get(
-        "http://localhost:5001/api/list-projects"
+        API_ENDPOINTS.LIST_PROJECTS
       );
       const project = projectsResponse.data.projects.find(
         (p: any) => p.name === projectId
@@ -186,7 +187,7 @@ const ProjectPage: React.FC = () => {
 
       console.log('Calling /api/run-project with:', { projectName: projectId, socketId });
       const response = await axios.post<StartProjectResponse>(
-        "http://localhost:5001/api/run-project",
+        API_ENDPOINTS.RUN_PROJECT,
         { projectName: projectId, socketId }
       );
 
@@ -235,7 +236,7 @@ const ProjectPage: React.FC = () => {
       try {
         console.log('Fetching project status for:', projectName);
         const response = await axios.get(
-          "http://localhost:5001/api/running-projects"
+          API_ENDPOINTS.RUNNING_PROJECTS
         );
         console.log('Running projects:', response.data.projects);
         const runningProject = response.data.projects.find(
@@ -299,7 +300,7 @@ const ProjectPage: React.FC = () => {
     async (projectName: string) => {
       try {
         const response = await axios.get(
-          "http://localhost:5001/api/list-projects"
+          API_ENDPOINTS.LIST_PROJECTS
         );
         const projectExists = response.data.projects.some(
           (p: any) => p.name === projectName
@@ -707,7 +708,7 @@ const ProjectPage: React.FC = () => {
       if (isNewProject && !prd && projectCreationPhase === "initial") {
         // Generate PRD for new project
         const prdResult = await axios.post<PRDResponse>(
-          "http://localhost:5001/generate-prd",
+          API_ENDPOINTS.GENERATE_PRD,
           { requirement: message }
         );
 
@@ -735,7 +736,7 @@ const ProjectPage: React.FC = () => {
         
         // Call update endpoint
         const updateResult = await axios.post(
-          "http://localhost:5001/api/update-project-v2",
+          API_ENDPOINTS.UPDATE_PROJECT_V2,
           {
             projectName: projectId,
             requirements: message,
@@ -777,7 +778,7 @@ const ProjectPage: React.FC = () => {
         
         // Call update endpoint
         const updateResult = await axios.post(
-          "http://localhost:5001/api/update-project-v2",
+          API_ENDPOINTS.UPDATE_PROJECT_V2,
           {
             projectName: projectId,
             requirements: message,
@@ -908,7 +909,7 @@ const ProjectPage: React.FC = () => {
     try {
       // Initialize the project with the approved PRD
       const result = await axios.post(
-        "http://localhost:5001/api/initialize-project",
+        API_ENDPOINTS.INITIALIZE_PROJECT,
         { prd, socketId }
       );
 
@@ -963,7 +964,7 @@ const ProjectPage: React.FC = () => {
       setActiveTab("terminal");
       
       const updateResult = await axios.post(
-        "http://localhost:5001/api/update-project-v2",
+        API_ENDPOINTS.UPDATE_PROJECT_V2,
         {
           projectName: projectName,
           requirements: prdContent,
