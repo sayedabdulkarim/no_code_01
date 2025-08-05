@@ -97,6 +97,8 @@ app.use('/project-preview/:projectName', (req, res, next) => {
   const { projectName } = req.params;
   const project = globalProjectManager.getProjectInfo(projectName);
   
+  console.log(`Project preview request: ${req.method} ${req.path} for project: ${projectName}`);
+  
   if (!project) {
     // Show error page for non-existent projects
     if (req.path === `/project-preview/${projectName}` || req.path === `/project-preview/${projectName}/`) {
@@ -113,6 +115,8 @@ app.use('/project-preview/:projectName', (req, res, next) => {
     }
     return res.status(404).json({ error: 'Project not found or not running' });
   }
+  
+  console.log(`Project ${projectName} is running on port ${project.port}`);
   
   // Create proxy middleware for this specific project
   const proxy = createProxyMiddleware({
@@ -132,24 +136,80 @@ app.use('/project-preview/:projectName', (req, res, next) => {
     selfHandleResponse: true,
     onProxyRes: (proxyRes, req, res) => {
       const contentType = proxyRes.headers['content-type'];
+      console.log(`Proxy response: ${req.path}, content-type: ${contentType}, status: ${proxyRes.statusCode}`);
       
       // For HTML responses, we need to inject a base tag and rewrite URLs
       if (contentType && contentType.includes('text/html')) {
         let body = '';
+        let chunks = [];
+        
         proxyRes.on('data', (chunk) => {
-          body += chunk;
+          chunks.push(chunk);
         });
         
         proxyRes.on('end', () => {
-          // Inject base tag and rewrite Next.js asset URLs
-          const modifiedBody = body
-            .replace('<head>', `<head><base href="/project-preview/${projectName}/">`)
+          body = Buffer.concat(chunks).toString();
+          console.log(`HTML response length: ${body.length}`);
+          
+          // More comprehensive URL rewriting for Next.js
+          let modifiedBody = body;
+          
+          // First, inject a script to set the base URL for all relative URLs
+          const baseScript = `
+            <script>
+              // Set base URL for all fetch requests
+              (function() {
+                const originalFetch = window.fetch;
+                window.fetch = function(url, options) {
+                  if (typeof url === 'string' && url.startsWith('/')) {
+                    url = '/project-preview/${projectName}' + url;
+                  }
+                  return originalFetch.call(this, url, options);
+                };
+              })();
+            </script>
+          `;
+          
+          // Inject base tag and our custom script
+          modifiedBody = modifiedBody.replace('<head>', `<head>${baseScript}<base href="/project-preview/${projectName}/">`);
+          
+          // Rewrite all absolute paths in the HTML
+          modifiedBody = modifiedBody
+            // Next.js specific paths
             .replace(/href="\/_next\//g, `href="/project-preview/${projectName}/_next/`)
             .replace(/src="\/_next\//g, `src="/project-preview/${projectName}/_next/`)
+            // API routes
             .replace(/"\/api\//g, `"/project-preview/${projectName}/api/`)
-            .replace(/fetch\(['"]\/api\//g, `fetch('/project-preview/${projectName}/api/`)
-            .replace(/window\.__NEXT_DATA__\.assetPrefix\s*=\s*["']?["']?/g, 
-                     `window.__NEXT_DATA__.assetPrefix = '/project-preview/${projectName}'`);
+            // Static assets
+            .replace(/href="\/static\//g, `href="/project-preview/${projectName}/static/`)
+            .replace(/src="\/static\//g, `src="/project-preview/${projectName}/static/`)
+            // Manifest and other root files
+            .replace(/href="\/manifest/g, `href="/project-preview/${projectName}/manifest`)
+            .replace(/href="\/favicon/g, `href="/project-preview/${projectName}/favicon`)
+            // Next.js data
+            .replace(/"assetPrefix":""/g, `"assetPrefix":"/project-preview/${projectName}"`)
+            .replace(/"basePath":""/g, `"basePath":"/project-preview/${projectName}"`);
+          
+          // Also handle __NEXT_DATA__ script tag
+          modifiedBody = modifiedBody.replace(
+            /<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/,
+            (match, jsonStr) => {
+              try {
+                const data = JSON.parse(jsonStr);
+                data.assetPrefix = `/project-preview/${projectName}`;
+                data.basePath = `/project-preview/${projectName}`;
+                return `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify(data)}</script>`;
+              } catch (e) {
+                console.error('Failed to parse __NEXT_DATA__:', e);
+                return match;
+              }
+            }
+          );
+          
+          // Check if modifications were made
+          if (body !== modifiedBody) {
+            console.log('HTML was modified for project preview');
+          }
           
           // Copy headers except content-length
           Object.keys(proxyRes.headers).forEach(key => {
@@ -160,13 +220,22 @@ app.use('/project-preview/:projectName', (req, res, next) => {
             }
           });
           
-          res.statusCode = proxyRes.statusCode;
+          res.statusCode = proxyRes.statusCode || 200;
+          res.setHeader('content-type', 'text/html; charset=utf-8');
           res.setHeader('content-length', Buffer.byteLength(modifiedBody));
+          // Add CORS headers for iframe
+          res.setHeader('X-Frame-Options', 'ALLOWALL');
+          res.setHeader('Content-Security-Policy', "frame-ancestors *;");
           res.end(modifiedBody);
+        });
+        
+        proxyRes.on('error', (err) => {
+          console.error('Error reading proxy response:', err);
+          res.status(502).json({ error: 'Bad Gateway' });
         });
       } else {
         // For non-HTML responses, just pipe through
-        res.statusCode = proxyRes.statusCode;
+        res.statusCode = proxyRes.statusCode || 200;
         Object.keys(proxyRes.headers).forEach(key => {
           res.setHeader(key, proxyRes.headers[key]);
         });
