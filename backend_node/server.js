@@ -12,6 +12,7 @@ try {
 const os = require("os");
 const cors = require("cors");
 const axios = require("axios"); // Make sure axios is installed
+const { createProxyMiddleware } = require('http-proxy-middleware');
 const executeShellCommand = require("./shell-command-executor");
 const { commandFixerAgent } = require("./utils/commandFixerAgent");
 const apiKeyStorage = require("./services/api-key-storage");
@@ -91,26 +92,14 @@ app.get("/health", (req, res) => {
 // Get the global project manager instance (singleton)
 const globalProjectManager = require('./services/project-manager');
 
-// Project preview proxy (for production)
-app.use('/project-preview/:projectName', async (req, res, next) => {
+// Project preview proxy middleware
+app.use('/project-preview/:projectName', (req, res, next) => {
   const { projectName } = req.params;
-  // Get the path after project name
-  const pathAfterProject = req.path.substring(`/project-preview/${projectName}`.length);
-  const targetPath = pathAfterProject || '/';
+  const project = globalProjectManager.getProjectInfo(projectName);
   
-  console.log(`Proxy request: project=${projectName}, path=${targetPath}, method=${req.method}`);
-  
-  try {
-    // Check if project is running
-    const project = globalProjectManager.getProjectInfo(projectName);
-    
-    if (!project) {
-      console.error(`Project not found: ${projectName}`);
-      // If it's a sub-resource request, return 404
-      if (targetPath !== '/' && targetPath !== '') {
-        return res.status(404).json({ error: 'Project not found or not running' });
-      }
-      // For main page requests, show a helpful message
+  if (!project) {
+    // Show error page for non-existent projects
+    if (req.path === `/project-preview/${projectName}` || req.path === `/project-preview/${projectName}/`) {
       return res.status(404).send(`
         <html>
           <head><title>Project Not Running</title></head>
@@ -122,76 +111,77 @@ app.use('/project-preview/:projectName', async (req, res, next) => {
         </html>
       `);
     }
-    
-    // Build the target URL
-    const targetUrl = `http://localhost:${project.port}${targetPath}`;
-    console.log(`Proxying to: ${targetUrl}`);
-    
-    // Create proxy request with proper headers
-    const proxyHeaders = {
-      ...req.headers,
-      host: `localhost:${project.port}`,
-      // Remove problematic headers
-      'accept-encoding': 'identity',
-      'connection': 'close'
-    };
-    delete proxyHeaders['content-length'];
-    delete proxyHeaders['transfer-encoding'];
-    
-    // Use axios to proxy the request
-    const axiosConfig = {
-      method: req.method,
-      url: targetUrl,
-      headers: proxyHeaders,
-      params: req.query,
-      data: req.body,
-      responseType: 'stream',
-      validateStatus: () => true,
-      maxRedirects: 0, // Handle redirects manually
-      timeout: 30000
-    };
-    
-    try {
-      const proxyRes = await axios(axiosConfig);
-      
-      // Set status code
-      res.status(proxyRes.status);
-      
-      // Forward headers, with modifications for production
-      Object.keys(proxyRes.headers).forEach(key => {
-        const lowerKey = key.toLowerCase();
-        if (!['connection', 'transfer-encoding', 'content-encoding'].includes(lowerKey)) {
-          // Rewrite location headers for redirects
-          if (lowerKey === 'location') {
-            const location = proxyRes.headers[key];
-            // If it's a relative URL, prepend our proxy path
-            if (location.startsWith('/')) {
-              res.setHeader(key, `/project-preview/${projectName}${location}`);
-            } else {
-              res.setHeader(key, location);
-            }
-          } else {
-            res.setHeader(key, proxyRes.headers[key]);
-          }
-        }
-      });
-      
-      // Pipe the response
-      proxyRes.data.pipe(res);
-      
-    } catch (streamError) {
-      console.error('Axios stream error:', streamError.message);
-      if (!res.headersSent) {
-        res.status(502).json({ error: 'Bad Gateway', details: streamError.message });
-      }
-    }
-    
-  } catch (error) {
-    console.error('Proxy error:', error.message, error.stack);
-    if (!res.headersSent) {
-      res.status(500).json({ error: `Failed to proxy request: ${error.message}` });
-    }
+    return res.status(404).json({ error: 'Project not found or not running' });
   }
+  
+  // Create proxy middleware for this specific project
+  const proxy = createProxyMiddleware({
+    target: `http://localhost:${project.port}`,
+    changeOrigin: true,
+    ws: true,
+    logLevel: 'debug',
+    
+    // Rewrite the path to remove the project preview prefix
+    pathRewrite: (path, req) => {
+      const newPath = path.replace(`/project-preview/${projectName}`, '') || '/';
+      console.log(`Rewriting path: ${path} -> ${newPath}`);
+      return newPath;
+    },
+    
+    // Handle HTML responses to inject base tag for proper asset loading
+    selfHandleResponse: true,
+    onProxyRes: (proxyRes, req, res) => {
+      const contentType = proxyRes.headers['content-type'];
+      
+      // For HTML responses, we need to inject a base tag and rewrite URLs
+      if (contentType && contentType.includes('text/html')) {
+        let body = '';
+        proxyRes.on('data', (chunk) => {
+          body += chunk;
+        });
+        
+        proxyRes.on('end', () => {
+          // Inject base tag and rewrite Next.js asset URLs
+          const modifiedBody = body
+            .replace('<head>', `<head><base href="/project-preview/${projectName}/">`)
+            .replace(/href="\/_next\//g, `href="/project-preview/${projectName}/_next/`)
+            .replace(/src="\/_next\//g, `src="/project-preview/${projectName}/_next/`)
+            .replace(/"\/api\//g, `"/project-preview/${projectName}/api/`)
+            .replace(/fetch\(['"]\/api\//g, `fetch('/project-preview/${projectName}/api/`)
+            .replace(/window\.__NEXT_DATA__\.assetPrefix\s*=\s*["']?["']?/g, 
+                     `window.__NEXT_DATA__.assetPrefix = '/project-preview/${projectName}'`);
+          
+          // Copy headers except content-length
+          Object.keys(proxyRes.headers).forEach(key => {
+            if (key.toLowerCase() !== 'content-length' && 
+                key.toLowerCase() !== 'transfer-encoding' &&
+                key.toLowerCase() !== 'content-encoding') {
+              res.setHeader(key, proxyRes.headers[key]);
+            }
+          });
+          
+          res.statusCode = proxyRes.statusCode;
+          res.setHeader('content-length', Buffer.byteLength(modifiedBody));
+          res.end(modifiedBody);
+        });
+      } else {
+        // For non-HTML responses, just pipe through
+        res.statusCode = proxyRes.statusCode;
+        Object.keys(proxyRes.headers).forEach(key => {
+          res.setHeader(key, proxyRes.headers[key]);
+        });
+        proxyRes.pipe(res);
+      }
+    },
+    
+    onError: (err, req, res) => {
+      console.error('Proxy error:', err);
+      res.status(502).json({ error: 'Bad Gateway', details: err.message });
+    }
+  });
+  
+  // Use the proxy
+  proxy(req, res, next);
 });
 
 // Make the project manager available to routes

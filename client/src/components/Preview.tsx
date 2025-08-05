@@ -98,6 +98,7 @@ const Preview: React.FC<PreviewProps> = ({ projectUrl, projectName }) => {
             allow="accelerometer; camera; encrypted-media; fullscreen; gyroscope; magnetometer; microphone; midi; payment; usb; xr-spatial-tracking"
             onLoad={handleIframeLoad}
             onError={handleIframeError}
+            data-project-name={projectName}
           />
         )}
       </IframeContainer>
