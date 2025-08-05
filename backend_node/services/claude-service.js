@@ -10,22 +10,37 @@ class ClaudeServiceError extends Error {
 }
 
 class ClaudeService {
-  constructor() {
-    this.apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!this.apiKey) {
+  constructor(apiKey = null) {
+    // In production mode, API key can be provided per request
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    this.apiKey = apiKey || process.env.ANTHROPIC_API_KEY;
+    
+    // Only require API key in development mode
+    if (!isProduction && !this.apiKey) {
       throw new ClaudeServiceError(
         "ANTHROPIC_API_KEY environment variable not set"
       );
     }
 
-    // Initialize Anthropic client
-    this.anthropic = new Anthropic({
-      apiKey: this.apiKey,
-    });
+    // Initialize Anthropic client if API key is available
+    if (this.apiKey) {
+      this.anthropic = new Anthropic({
+        apiKey: this.apiKey,
+      });
+    }
 
     // Initialize memory to store previous generations (same as original)
     this.memory = {};
     this.memoryLimit = 5; // Store the last 5 generations
+  }
+
+  // Set API key dynamically (for production mode)
+  setApiKey(apiKey) {
+    this.apiKey = apiKey;
+    this.anthropic = new Anthropic({
+      apiKey: this.apiKey,
+    });
   }
 
   // Save the prompt and response to memory
@@ -149,6 +164,12 @@ Make sure to preserve the existing functionality while adding the requested chan
 
   // Generate text using Claude API directly
   async generateText(prompt) {
+    if (!this.anthropic) {
+      throw new ClaudeServiceError(
+        "Claude API client not initialized. Please provide an API key."
+      );
+    }
+    
     const maxRetries = 3;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
