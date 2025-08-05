@@ -83,6 +83,11 @@ const io = new Server(server, {
   },
 });
 
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 // Include routers
 app.use(generateRouter);
 app.use("/api", generateV2Router);
