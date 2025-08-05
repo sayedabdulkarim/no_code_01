@@ -1,7 +1,14 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
-const pty = require("node-pty");
+const path = require("path");
+let pty;
+try {
+  pty = require("node-pty");
+} catch (e) {
+  console.warn("node-pty not available - terminal features will be limited");
+  pty = null;
+}
 const os = require("os");
 const cors = require("cors");
 const axios = require("axios"); // Make sure axios is installed
@@ -31,9 +38,24 @@ const app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+// Update CORS to handle dynamic origins
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://localhost:3001"], // Allow multiple origins
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      
+      // In production, you might want to whitelist specific domains
+      const allowedOrigins = process.env.NODE_ENV === 'production' 
+        ? [process.env.CLIENT_URL || 'https://your-app.railway.app']
+        : ["http://localhost:3000", "http://localhost:3001"];
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Allow all origins for now
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
@@ -43,7 +65,19 @@ app.use(
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:3001"],
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      
+      const allowedOrigins = process.env.NODE_ENV === 'production' 
+        ? [process.env.CLIENT_URL || 'https://your-app.railway.app']
+        : ["http://localhost:3000", "http://localhost:3001"];
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Allow all origins for now
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -68,6 +102,11 @@ app.use("/api", validateApiKeyRouter);
 
 // Store io reference for other routes
 app.set("io", io);
+
+// Serve static files from React build in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/build')));
+}
 
 // Proxy endpoint for OpenRouter API
 app.post("/api/proxy/openrouter", async (req, res) => {
@@ -168,7 +207,47 @@ const shell = os.platform() === "win32" ? "powershell.exe" : "zsh";
 io.on("connection", (socket) => {
   console.log("Client connected");
 
-  // Spawn a shell process
+  // Check if pty is available
+  if (!pty) {
+    socket.emit("output", "Terminal emulation not available in this environment.\r\n");
+    socket.emit("output", "Command execution features are limited.\r\n");
+    
+    // Still handle API key storage
+    socket.on("store-api-key", (data) => {
+      try {
+        const { apiKey } = data;
+        if (apiKey) {
+          apiKeyStorage.setApiKey(socket.id, apiKey);
+          socket.emit("api-key-stored", { success: true });
+          console.log(`API key stored for client: ${socket.id}`);
+        } else {
+          socket.emit("api-key-stored", { success: false, error: "No API key provided" });
+        }
+      } catch (error) {
+        console.error("Error storing API key:", error);
+        socket.emit("api-key-stored", { success: false, error: error.message });
+      }
+    });
+    
+    // Still handle events but don't execute
+    socket.on("input", (data) => {
+      // Echo back input for visual feedback
+      socket.emit("output", `[Limited Mode] Command received but not executed: ${data}\r\n`);
+    });
+    
+    socket.on("resize", (size) => {
+      // No-op
+    });
+    
+    socket.on("disconnect", () => {
+      console.log("Client disconnected");
+      apiKeyStorage.removeApiKey(socket.id);
+    });
+    
+    return;
+  }
+
+  // Spawn a shell process (original code)
   const ptyProcess = pty.spawn(shell, [], {
     name: "xterm-256color",
     cols: 80,
@@ -222,6 +301,15 @@ io.on("connection", (socket) => {
     apiKeyStorage.removeApiKey(socket.id);
     ptyProcess.kill();
   });
+});
+
+// Add this at the end of all routes - fallback route for React app
+app.get('*', (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+  } else {
+    res.status(404).json({ error: 'Route not found' });
+  }
 });
 
 // Error handling middleware
