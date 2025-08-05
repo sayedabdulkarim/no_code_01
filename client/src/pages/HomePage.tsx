@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ProjectCard from '../components/ProjectCard';
 import Footer from '../components/Footer';
+import { API_ENDPOINTS } from '../config/api';
 
 const PageContainer = styled.div`
   width: 100%;
@@ -243,7 +244,7 @@ const HomePage: React.FC = () => {
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:5001/api/list-projects');
+      const response = await axios.get(API_ENDPOINTS.LIST_PROJECTS);
       setProjects(response.data.projects || []);
     } catch (error) {
       console.error('Error fetching projects:', error);
