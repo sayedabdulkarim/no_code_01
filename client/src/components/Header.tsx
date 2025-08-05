@@ -3,6 +3,7 @@ import styled from '@emotion/styled';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useTheme } from '../context/ThemeContext';
+import { useSocket } from '../context/SocketContext';
 import SlidePanel from './SlidePanel';
 import { API_ENDPOINTS } from '../config/api';
 
@@ -146,6 +147,7 @@ const Header: React.FC = () => {
   const [stoppingProject, setStoppingProject] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const { isDarkMode, toggleTheme } = useTheme();
+  const { socket } = useSocket();
 
   const fetchRunningProjects = async () => {
     try {
@@ -159,8 +161,39 @@ const Header: React.FC = () => {
   useEffect(() => {
     fetchRunningProjects();
     const interval = setInterval(fetchRunningProjects, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    
+    // Listen for real-time project status updates
+    if (socket) {
+      socket.on('project:status', (data) => {
+        console.log('Project status update:', data);
+        // Refresh the list when a project starts or stops
+        if (data.stage === 'server_ready' || data.stage === 'server_stopped' || data.stage === 'server_error') {
+          fetchRunningProjects();
+        }
+      });
+      
+      // Listen for project running events
+      socket.on('project:running', (data) => {
+        console.log('Project running:', data);
+        fetchRunningProjects();
+      });
+      
+      // Listen for project stopped events
+      socket.on('project:stopped', (data) => {
+        console.log('Project stopped:', data);
+        fetchRunningProjects();
+      });
+    }
+    
+    return () => {
+      clearInterval(interval);
+      if (socket) {
+        socket.off('project:status');
+        socket.off('project:running');
+        socket.off('project:stopped');
+      }
+    };
+  }, [socket]);
 
   const handleStopProject = async (projectName: string) => {
     setStoppingProject(projectName);

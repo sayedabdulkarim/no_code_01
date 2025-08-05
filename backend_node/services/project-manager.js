@@ -7,6 +7,16 @@ class ProjectManager {
   constructor() {
     // Store running projects with their processes and ports
     this.runningProjects = new Map();
+    // Store reference to io instance for broadcasting
+    this.io = null;
+  }
+  
+  /**
+   * Set the io instance for broadcasting
+   * @param {Server} io - Socket.io server instance
+   */
+  setIo(io) {
+    this.io = io;
   }
 
   /**
@@ -81,8 +91,13 @@ class ProjectManager {
           socket.emit('output', `\n\x1b[1;33m> Installing dependencies...\x1b[0m\n`);
         }
         
-        const installProcess = spawn('npm', ['install'], {
+        const installProcess = spawn('npm', ['install', '--legacy-peer-deps'], {
           cwd: projectPath,
+          env: {
+            ...process.env,
+            NODE_ENV: 'development',
+            npm_config_loglevel: 'error'
+          },
           stdio: ['ignore', 'pipe', 'pipe']
         });
         
@@ -131,6 +146,7 @@ class ProjectManager {
         env: {
           ...process.env,
           PORT: port.toString(),
+          NODE_ENV: 'development', // Always run generated projects in development mode
           // Force the port for Next.js
           NODE_OPTIONS: `--inspect=false`
         },
@@ -177,6 +193,16 @@ class ProjectManager {
             message: 'Development server stopped',
             exitCode: code
           });
+          
+          // Broadcast to all connected clients
+          const socketIo = socket.nsp && socket.nsp.server;
+          const broadcastIo = socketIo || this.io;
+          if (broadcastIo) {
+            broadcastIo.emit('project:stopped', {
+              projectName,
+              exitCode: code
+            });
+          }
         }
       });
 
@@ -209,6 +235,18 @@ class ProjectManager {
           url,
           port
         });
+        
+        // Broadcast to all connected clients
+        // Try to get io from socket first, then use global io
+        const socketIo = socket.nsp && socket.nsp.server;
+        const broadcastIo = socketIo || this.io;
+        if (broadcastIo) {
+          broadcastIo.emit('project:running', {
+            projectName,
+            url,
+            port
+          });
+        }
       }
 
       return { port, url, projectName };

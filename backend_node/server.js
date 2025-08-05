@@ -92,13 +92,13 @@ app.get("/health", (req, res) => {
 const globalProjectManager = require('./services/project-manager');
 
 // Project preview proxy (for production)
-app.use('/project-preview/:projectName*', async (req, res) => {
+app.use('/project-preview/:projectName', async (req, res, next) => {
   const { projectName } = req.params;
-  // Get the full path after project name, handling both with and without trailing slash
-  const fullPath = req.params[0] || req.path.substring(`/project-preview/${projectName}`.length);
-  const path = fullPath.startsWith('/') ? fullPath.substring(1) : fullPath;
+  // Get the path after project name
+  const pathAfterProject = req.path.substring(`/project-preview/${projectName}`.length);
+  const targetPath = pathAfterProject || '/';
   
-  console.log(`Proxy request: project=${projectName}, path=${path}, method=${req.method}`);
+  console.log(`Proxy request: project=${projectName}, path=${targetPath}, method=${req.method}`);
   
   try {
     // Check if project is running
@@ -106,50 +106,91 @@ app.use('/project-preview/:projectName*', async (req, res) => {
     
     if (!project) {
       console.error(`Project not found: ${projectName}`);
-      return res.status(404).json({ error: 'Project not found or not running' });
+      // If it's a sub-resource request, return 404
+      if (targetPath !== '/' && targetPath !== '') {
+        return res.status(404).json({ error: 'Project not found or not running' });
+      }
+      // For main page requests, show a helpful message
+      return res.status(404).send(`
+        <html>
+          <head><title>Project Not Running</title></head>
+          <body style="font-family: system-ui; padding: 40px; text-align: center;">
+            <h1>Project "${projectName}" is not running</h1>
+            <p>Please start the project from the Synth AI interface first.</p>
+            <a href="/">Go to Homepage</a>
+          </body>
+        </html>
+      `);
     }
     
-    // Proxy the request to the local development server
-    const targetUrl = `http://localhost:${project.port}/${path}`;
+    // Build the target URL
+    const targetUrl = `http://localhost:${project.port}${targetPath}`;
     console.log(`Proxying to: ${targetUrl}`);
     
-    // Use the appropriate axios method based on the request method
+    // Create proxy request with proper headers
+    const proxyHeaders = {
+      ...req.headers,
+      host: `localhost:${project.port}`,
+      // Remove problematic headers
+      'accept-encoding': 'identity',
+      'connection': 'close'
+    };
+    delete proxyHeaders['content-length'];
+    delete proxyHeaders['transfer-encoding'];
+    
+    // Use axios to proxy the request
     const axiosConfig = {
       method: req.method,
       url: targetUrl,
-      headers: {
-        ...req.headers,
-        host: `localhost:${project.port}`,
-        // Remove headers that might cause issues
-        'accept-encoding': undefined,
-        'content-length': undefined,
-        'transfer-encoding': undefined
-      },
-      data: req.method !== 'GET' && req.method !== 'HEAD' ? req.body : undefined,
+      headers: proxyHeaders,
+      params: req.query,
+      data: req.body,
       responseType: 'stream',
-      validateStatus: () => true, // Don't throw on any status
-      maxRedirects: 10
+      validateStatus: () => true,
+      maxRedirects: 0, // Handle redirects manually
+      timeout: 30000
     };
     
-    const proxyRes = await axios(axiosConfig);
-    
-    // Set status code
-    res.status(proxyRes.status);
-    
-    // Forward response headers, filtering out problematic ones
-    const headersToSkip = ['connection', 'content-encoding', 'transfer-encoding'];
-    Object.keys(proxyRes.headers).forEach(key => {
-      if (!headersToSkip.includes(key.toLowerCase())) {
-        res.set(key, proxyRes.headers[key]);
+    try {
+      const proxyRes = await axios(axiosConfig);
+      
+      // Set status code
+      res.status(proxyRes.status);
+      
+      // Forward headers, with modifications for production
+      Object.keys(proxyRes.headers).forEach(key => {
+        const lowerKey = key.toLowerCase();
+        if (!['connection', 'transfer-encoding', 'content-encoding'].includes(lowerKey)) {
+          // Rewrite location headers for redirects
+          if (lowerKey === 'location') {
+            const location = proxyRes.headers[key];
+            // If it's a relative URL, prepend our proxy path
+            if (location.startsWith('/')) {
+              res.setHeader(key, `/project-preview/${projectName}${location}`);
+            } else {
+              res.setHeader(key, location);
+            }
+          } else {
+            res.setHeader(key, proxyRes.headers[key]);
+          }
+        }
+      });
+      
+      // Pipe the response
+      proxyRes.data.pipe(res);
+      
+    } catch (streamError) {
+      console.error('Axios stream error:', streamError.message);
+      if (!res.headersSent) {
+        res.status(502).json({ error: 'Bad Gateway', details: streamError.message });
       }
-    });
-    
-    // Pipe the response
-    proxyRes.data.pipe(res);
+    }
     
   } catch (error) {
     console.error('Proxy error:', error.message, error.stack);
-    res.status(500).json({ error: `Failed to proxy request: ${error.message}` });
+    if (!res.headersSent) {
+      res.status(500).json({ error: `Failed to proxy request: ${error.message}` });
+    }
   }
 });
 
@@ -175,6 +216,9 @@ app.use("/api", validateApiKeyRouter);
 
 // Store io reference for other routes
 app.set("io", io);
+
+// Set io instance in project manager for broadcasting
+globalProjectManager.setIo(io);
 
 // Serve static files from React build in production
 if (process.env.NODE_ENV === 'production') {
