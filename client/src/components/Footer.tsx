@@ -108,18 +108,12 @@ const Footer: React.FC = () => {
         <LeftSection>
           <BrandName>Synth AI</BrandName>
           <Separator>•</Separator>
-          <Tagline>Build Next.js apps with natural language</Tagline>
+          <Tagline>Build fullstack apps with natural language</Tagline>
         </LeftSection>
 
         <CenterSection>
-          <FooterLink href="https://github.com" target="_blank" rel="noopener noreferrer">
-            GitHub
-          </FooterLink>
-          <FooterLink href="#" onClick={(e) => { e.preventDefault(); alert('Documentation coming soon!'); }}>
+          <FooterLink href="https://gist.github.com/sayedabdulkarim/43df3c68c030ff8bc947db162aa23f1a" target="_blank" rel="noopener noreferrer">
             Documentation
-          </FooterLink>
-          <FooterLink href="#" onClick={(e) => { e.preventDefault(); alert('Support coming soon!'); }}>
-            Support
           </FooterLink>
         </CenterSection>
 
