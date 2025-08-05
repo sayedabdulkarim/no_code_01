@@ -129,7 +129,12 @@ class ProjectManager {
       });
 
       // Store the project info
-      const url = `http://localhost:${port}`;
+      // In production, create a proxy URL; in development, use localhost
+      const isProduction = process.env.NODE_ENV === 'production';
+      const url = isProduction 
+        ? `${process.env.CLIENT_URL || ''}/project-preview/${projectName}`
+        : `http://localhost:${port}`;
+        
       this.runningProjects.set(projectName, {
         process: childProcess,
         port,

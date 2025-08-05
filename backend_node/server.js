@@ -88,6 +88,50 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Create a global project manager instance
+const ProjectManager = require('./services/project-manager');
+const globalProjectManager = new ProjectManager();
+
+// Project preview proxy (for production)
+app.use('/project-preview/:projectName/*', async (req, res) => {
+  const { projectName } = req.params;
+  const path = req.params[0] || '';
+  
+  try {
+    // Check if project is running
+    const project = globalProjectManager.getProjectInfo(projectName);
+    
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found or not running' });
+    }
+    
+    // Proxy the request to the local development server
+    const targetUrl = `http://localhost:${project.port}/${path}`;
+    const proxyRes = await axios.get(targetUrl, {
+      headers: {
+        ...req.headers,
+        host: `localhost:${project.port}`
+      },
+      responseType: 'stream'
+    });
+    
+    // Forward response headers
+    Object.keys(proxyRes.headers).forEach(key => {
+      res.set(key, proxyRes.headers[key]);
+    });
+    
+    // Pipe the response
+    proxyRes.data.pipe(res);
+    
+  } catch (error) {
+    console.error('Proxy error:', error.message);
+    res.status(500).json({ error: 'Failed to proxy request' });
+  }
+});
+
+// Make the project manager available to routes
+app.set('projectManager', globalProjectManager);
+
 // Include routers
 app.use(generateRouter);
 app.use("/api", generateV2Router);
