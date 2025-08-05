@@ -88,9 +88,8 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Create a global project manager instance
-const ProjectManager = require('./services/project-manager');
-const globalProjectManager = new ProjectManager();
+// Get the global project manager instance (singleton)
+const globalProjectManager = require('./services/project-manager');
 
 // Project preview proxy (for production)
 app.use('/project-preview/:projectName/*', async (req, res) => {
