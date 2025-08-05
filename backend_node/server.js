@@ -92,39 +92,64 @@ app.get("/health", (req, res) => {
 const globalProjectManager = require('./services/project-manager');
 
 // Project preview proxy (for production)
-app.use('/project-preview/:projectName/*', async (req, res) => {
+app.use('/project-preview/:projectName*', async (req, res) => {
   const { projectName } = req.params;
-  const path = req.params[0] || '';
+  // Get the full path after project name, handling both with and without trailing slash
+  const fullPath = req.params[0] || req.path.substring(`/project-preview/${projectName}`.length);
+  const path = fullPath.startsWith('/') ? fullPath.substring(1) : fullPath;
+  
+  console.log(`Proxy request: project=${projectName}, path=${path}, method=${req.method}`);
   
   try {
     // Check if project is running
     const project = globalProjectManager.getProjectInfo(projectName);
     
     if (!project) {
+      console.error(`Project not found: ${projectName}`);
       return res.status(404).json({ error: 'Project not found or not running' });
     }
     
     // Proxy the request to the local development server
     const targetUrl = `http://localhost:${project.port}/${path}`;
-    const proxyRes = await axios.get(targetUrl, {
+    console.log(`Proxying to: ${targetUrl}`);
+    
+    // Use the appropriate axios method based on the request method
+    const axiosConfig = {
+      method: req.method,
+      url: targetUrl,
       headers: {
         ...req.headers,
-        host: `localhost:${project.port}`
+        host: `localhost:${project.port}`,
+        // Remove headers that might cause issues
+        'accept-encoding': undefined,
+        'content-length': undefined,
+        'transfer-encoding': undefined
       },
-      responseType: 'stream'
-    });
+      data: req.method !== 'GET' && req.method !== 'HEAD' ? req.body : undefined,
+      responseType: 'stream',
+      validateStatus: () => true, // Don't throw on any status
+      maxRedirects: 10
+    };
     
-    // Forward response headers
+    const proxyRes = await axios(axiosConfig);
+    
+    // Set status code
+    res.status(proxyRes.status);
+    
+    // Forward response headers, filtering out problematic ones
+    const headersToSkip = ['connection', 'content-encoding', 'transfer-encoding'];
     Object.keys(proxyRes.headers).forEach(key => {
-      res.set(key, proxyRes.headers[key]);
+      if (!headersToSkip.includes(key.toLowerCase())) {
+        res.set(key, proxyRes.headers[key]);
+      }
     });
     
     // Pipe the response
     proxyRes.data.pipe(res);
     
   } catch (error) {
-    console.error('Proxy error:', error.message);
-    res.status(500).json({ error: 'Failed to proxy request' });
+    console.error('Proxy error:', error.message, error.stack);
+    res.status(500).json({ error: `Failed to proxy request: ${error.message}` });
   }
 });
 
