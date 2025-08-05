@@ -2,6 +2,7 @@ const { spawn } = require('child_process');
 const { findAvailablePort } = require('../utils/port-finder');
 const path = require('path');
 const fs = require('fs').promises;
+const axios = require('axios');
 
 class ProjectManager {
   constructor() {
@@ -141,16 +142,21 @@ class ProjectManager {
       }
 
       // Start the Next.js development server
-      const childProcess = spawn('npm', ['run', 'dev'], {
+      const childProcess = spawn('npm', ['run', 'dev', '--', '--port', port.toString()], {
         cwd: projectPath,
         env: {
           ...process.env,
           PORT: port.toString(),
           NODE_ENV: 'development', // Always run generated projects in development mode
-          // Force the port for Next.js
-          NODE_OPTIONS: `--inspect=false`
+          // Disable inspector to avoid port conflicts
+          NODE_OPTIONS: '--inspect=false',
+          // Ensure Next.js uses the correct port
+          NEXT_TELEMETRY_DISABLED: '1', // Disable telemetry to reduce startup time
+          npm_config_loglevel: 'error' // Reduce npm noise
         },
-        shell: true
+        shell: true,
+        // Ensure proper signal handling
+        detached: false
       });
 
       // Handle stdout
@@ -180,18 +186,36 @@ class ProjectManager {
         console.error(`[${projectName} ERROR]:`, output);
       });
 
-      // Handle process exit
-      childProcess.on('close', (code) => {
-        console.log(`[${projectName}] Process exited with code ${code}`);
-        this.runningProjects.delete(projectName);
+      // Handle process errors
+      childProcess.on('error', (error) => {
+        console.error(`[${projectName}] Process error:`, error);
         if (socket) {
-          socket.emit('output', `\n\x1b[1;33m> Development server stopped (exit code: ${code})\x1b[0m\n`);
+          socket.emit('output', `\n\x1b[1;31m> Process error: ${error.message}\x1b[0m\n`);
+        }
+      });
+
+      // Handle process exit
+      childProcess.on('close', (code, signal) => {
+        console.log(`[${projectName}] Process exited with code ${code}, signal ${signal}`);
+        this.runningProjects.delete(projectName);
+        
+        // Determine exit reason
+        let exitReason = 'Development server stopped';
+        if (signal) {
+          exitReason = `Process terminated by signal ${signal}`;
+        } else if (code !== 0) {
+          exitReason = `Process exited with error code ${code}`;
+        }
+        
+        if (socket) {
+          socket.emit('output', `\n\x1b[1;33m> ${exitReason} (exit code: ${code})\x1b[0m\n`);
           // Emit status event for server stopped
           socket.emit('project:status', {
             projectName,
             stage: 'server_stopped',
-            message: 'Development server stopped',
-            exitCode: code
+            message: exitReason,
+            exitCode: code,
+            signal: signal
           });
           
           // Broadcast to all connected clients
@@ -200,7 +224,8 @@ class ProjectManager {
           if (broadcastIo) {
             broadcastIo.emit('project:stopped', {
               projectName,
-              exitCode: code
+              exitCode: code,
+              signal: signal
             });
           }
         }
@@ -221,8 +246,38 @@ class ProjectManager {
         startTime: new Date()
       });
 
-      // Wait a bit for the server to start
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Wait a bit for the server to start, but check if process is still alive
+      let serverStarted = false;
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      while (!serverStarted && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        attempts++;
+        
+        // Check if process is still running
+        if (childProcess.killed || childProcess.exitCode !== null) {
+          throw new Error(`Process exited prematurely with code ${childProcess.exitCode}`);
+        }
+        
+        // Check if we can connect to the server
+        try {
+          const testResponse = await axios.get(`http://localhost:${port}`, { 
+            timeout: 1000,
+            validateStatus: () => true 
+          });
+          if (testResponse.status < 500) {
+            serverStarted = true;
+          }
+        } catch (e) {
+          // Server not ready yet
+          console.log(`Waiting for server to start... attempt ${attempts}/${maxAttempts}`);
+        }
+      }
+      
+      if (!serverStarted) {
+        throw new Error('Server failed to start within timeout period');
+      }
 
       if (socket) {
         socket.emit('output', `\n\x1b[1;32m✓ Development server started successfully!\x1b[0m\n`);

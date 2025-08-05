@@ -167,12 +167,46 @@ app.use('/project-preview/:projectName', async (req, res, next) => {
       // Add base tag and script
       html = html.replace('<head>', `<head>${baseTag}${scriptTag}`);
       
-      // Rewrite common Next.js paths
+      // Handle __NEXT_DATA__ script tag
+      html = html.replace(
+        /<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/s,
+        (match, jsonStr) => {
+          try {
+            const data = JSON.parse(jsonStr);
+            // Update Next.js configuration
+            data.assetPrefix = `/project-preview/${projectName}`;
+            data.basePath = `/project-preview/${projectName}`;
+            if (data.page) {
+              data.page = data.page.replace(/^\//, '');
+            }
+            return `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify(data)}</script>`;
+          } catch (e) {
+            console.error('Failed to parse __NEXT_DATA__:', e);
+            return match;
+          }
+        }
+      );
+      
+      // More comprehensive URL rewriting for all Next.js assets
       html = html
-        .replace(/href="\/_next\//g, `href="/project-preview/${projectName}/_next/`)
-        .replace(/src="\/_next\//g, `src="/project-preview/${projectName}/_next/`)
+        // Next.js JavaScript and CSS files (including those with additional attributes)
+        .replace(/href=["']\/_next\//g, `href="/project-preview/${projectName}/_next/`)
+        .replace(/src=["']\/_next\//g, `src="/project-preview/${projectName}/_next/`)
+        // Handle link preload/prefetch
+        .replace(/href=["'](\/_next\/[^"']+)["']/g, `href="/project-preview/${projectName}$1"`)
+        // API routes
         .replace(/"\/api\//g, `"/project-preview/${projectName}/api/`)
-        .replace(/"\/static\//g, `"/project-preview/${projectName}/static/`);
+        // Static files
+        .replace(/"\/static\//g, `"/project-preview/${projectName}/static/`)
+        // CSS imports in style tags
+        .replace(/url\(\/_next\//g, `url(/project-preview/${projectName}/_next/`)
+        // Next.js runtime configuration
+        .replace(/"assetPrefix":""/g, `"assetPrefix":"/project-preview/${projectName}"`)
+        .replace(/"basePath":""/g, `"basePath":"/project-preview/${projectName}"`)
+        // Webpack public path
+        .replace(/__webpack_public_path__\s*=\s*["']\/["']/g, `__webpack_public_path__ = "/project-preview/${projectName}/"`)
+        // Next.js page data
+        .replace(/\/_next\/data\//g, `/project-preview/${projectName}/_next/data/`);
       
       // Set response headers
       res.status(response.status);
