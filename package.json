@@ -10,7 +10,7 @@
     "railway-postbuild": "npm run install:all && npm run build"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "concurrently": "^7.6.0"

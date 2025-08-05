@@ -38,5 +38,5 @@ Thumbs.db
 # Temporary project storage (for Railway)
 /tmp/projects/
 
-# User generated projects (keep for local development)
-# client/user-projects/
+# User generated projects (exclude from production builds)
+client/user-projects/
