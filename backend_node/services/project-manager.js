@@ -60,6 +60,58 @@ class ProjectManager {
         console.log('No node_modules cache to clean');
       }
 
+      // Check if node_modules exists, if not install dependencies
+      const nodeModulesPath = path.join(projectPath, 'node_modules');
+      const packageJsonPath = path.join(projectPath, 'package.json');
+      
+      try {
+        await fs.access(nodeModulesPath);
+        await fs.access(packageJsonPath);
+        
+        // Check if node_modules is outdated by comparing package.json and node_modules timestamps
+        const packageJsonStat = await fs.stat(packageJsonPath);
+        const nodeModulesStat = await fs.stat(nodeModulesPath);
+        
+        if (packageJsonStat.mtime > nodeModulesStat.mtime) {
+          throw new Error('Dependencies need to be updated');
+        }
+      } catch (error) {
+        // Install dependencies
+        if (socket) {
+          socket.emit('output', `\n\x1b[1;33m> Installing dependencies...\x1b[0m\n`);
+        }
+        
+        const installProcess = spawn('npm', ['install'], {
+          cwd: projectPath,
+          stdio: ['ignore', 'pipe', 'pipe']
+        });
+        
+        // Pipe install output to socket
+        if (socket) {
+          installProcess.stdout.on('data', (data) => {
+            socket.emit('output', data.toString());
+          });
+          
+          installProcess.stderr.on('data', (data) => {
+            socket.emit('output', `\x1b[31m${data.toString()}\x1b[0m`);
+          });
+        }
+        
+        // Wait for installation to complete
+        await new Promise((resolve, reject) => {
+          installProcess.on('close', (code) => {
+            if (code === 0) {
+              if (socket) {
+                socket.emit('output', `\x1b[32m> Dependencies installed successfully!\x1b[0m\n`);
+              }
+              resolve();
+            } else {
+              reject(new Error(`npm install failed with code ${code}`));
+            }
+          });
+        });
+      }
+
       // Find an available port starting from 3002 (to avoid conflicts with main app)
       const port = await findAvailablePort(3002);
       
