@@ -125,13 +125,23 @@ Create a task list that:
 - For FEATURE changes: Implement new functionality properly
 - Preserves all existing code that doesn't need changes
 
+${classification.intent === 'STYLE' || classification.intent === 'CONTENT' ? `
+CRITICAL FOR ${classification.intent} CHANGES:
+- Create ONLY ONE TASK
+- Modify ONLY the existing file where the change is needed
+- Do NOT create new component files
+- For color changes: just update the className (e.g., text-blue-500 to text-green-500)
+- For text changes: just update the text content
+- Keep it SIMPLE - no over-engineering
+` : ''}
+
 Return ONLY a valid JSON object with this structure:
 {
   "tasks": [
     {
       "id": "update-1",
-      "name": "Update specific component for new feature",
-      "description": "Add new functionality to existing component",
+      "name": "Update ${classification.intent === 'STYLE' ? 'styles in' : classification.intent === 'CONTENT' ? 'content in' : ''} existing file",
+      "description": "${classification.intent === 'STYLE' ? 'Change color/style as requested' : classification.intent === 'CONTENT' ? 'Update text content as requested' : 'Add new functionality'}",
       "dependencies": [],
       "files": ["src/app/page.tsx"],
       "priority": 1,
