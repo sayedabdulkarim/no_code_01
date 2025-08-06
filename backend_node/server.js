@@ -96,6 +96,19 @@ app.get("/health", (req, res) => {
 // Get the global project manager instance (singleton)
 const globalProjectManager = require('./services/project-manager');
 
+// Helper function to check if a port is in use
+async function isPortInUse(port) {
+  try {
+    await axios.get(`http://localhost:${port}`, { 
+      timeout: 500,
+      validateStatus: () => true 
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // Simple proxy implementation for project preview - handles all paths including assets
 app.use('/project-preview/:projectName*', async (req, res, next) => {
   const { projectName } = req.params;
@@ -106,8 +119,31 @@ app.use('/project-preview/:projectName*', async (req, res, next) => {
   console.log('Requested project:', projectName);
   console.log('All running projects:', allProjects.map(p => p.name));
   
-  const project = globalProjectManager.getProjectInfo(projectName);
-  console.log('Found project?:', !!project);
+  let project = globalProjectManager.getProjectInfo(projectName);
+  console.log('Found project in manager?:', !!project);
+  
+  // If not found in manager but in production, try to find by scanning ports
+  if (!project && process.env.NODE_ENV === 'production') {
+    console.log('Production mode: Scanning for project on known ports...');
+    // Try common ports used by our projects (3002-3010)
+    for (let port = 3002; port <= 3010; port++) {
+      if (await isPortInUse(port)) {
+        console.log(`Found active server on port ${port}`);
+        // Assume this is our project (in production we usually have one project per container)
+        project = {
+          port,
+          url: `${process.env.CLIENT_URL || ''}/project-preview/${projectName}`,
+          projectPath: path.join(__dirname, '..', 'client', 'user-projects', projectName),
+          startTime: new Date()
+        };
+        // Register it back in the tracker
+        const projectTracker = require('./services/project-tracker');
+        projectTracker.addProject(projectName, project);
+        break;
+      }
+    }
+  }
+  
   if (project) {
     console.log('Project info:', { name: projectName, port: project.port, url: project.url });
   }

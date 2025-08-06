@@ -3,6 +3,7 @@ const { findAvailablePort } = require('../utils/port-finder');
 const path = require('path');
 const fs = require('fs').promises;
 const axios = require('axios');
+const projectTracker = require('./project-tracker');
 
 class ProjectManager {
   constructor() {
@@ -197,7 +198,16 @@ class ProjectManager {
       // Handle process exit
       childProcess.on('close', (code, signal) => {
         console.log(`[${projectName}] Process exited with code ${code}, signal ${signal}`);
-        this.runningProjects.delete(projectName);
+        
+        // Only remove from tracking if not a SIGTERM (container restart)
+        if (signal !== 'SIGTERM') {
+          this.runningProjects.delete(projectName);
+          projectTracker.removeProject(projectName);
+        } else {
+          console.log(`[${projectName}] Received SIGTERM - keeping project in tracker for production restart`);
+          // Remove from in-memory map but keep in tracker
+          this.runningProjects.delete(projectName);
+        }
         
         // Determine exit reason
         let exitReason = 'Development server stopped';
@@ -238,8 +248,18 @@ class ProjectManager {
         ? `${process.env.CLIENT_URL || ''}/project-preview/${projectName}`
         : `http://localhost:${port}`;
         
-      this.runningProjects.set(projectName, {
+      const projectInfo = {
         process: childProcess,
+        port,
+        url,
+        projectPath,
+        startTime: new Date()
+      };
+      
+      this.runningProjects.set(projectName, projectInfo);
+      
+      // Also add to persistent tracker
+      projectTracker.addProject(projectName, {
         port,
         url,
         projectPath,
@@ -349,6 +369,7 @@ class ProjectManager {
       
       // Remove from map immediately to prevent port conflicts
       this.runningProjects.delete(projectName);
+      projectTracker.removeProject(projectName);
       return true;
     }
     return false;
@@ -359,7 +380,12 @@ class ProjectManager {
    * @param {string} projectName - Name of the project
    */
   getProjectInfo(projectName) {
-    return this.runningProjects.get(projectName);
+    // First check in-memory map
+    const inMemory = this.runningProjects.get(projectName);
+    if (inMemory) return inMemory;
+    
+    // Fall back to tracker (for production restarts)
+    return projectTracker.getProject(projectName);
   }
 
   /**
@@ -367,6 +393,8 @@ class ProjectManager {
    */
   getAllRunningProjects() {
     const projects = [];
+    
+    // First add projects from in-memory map
     for (const [name, info] of this.runningProjects) {
       projects.push({
         name,
@@ -376,6 +404,15 @@ class ProjectManager {
         startTime: info.startTime
       });
     }
+    
+    // Then add any tracked projects not in memory (production restarts)
+    const trackedProjects = projectTracker.getAllProjects();
+    for (const tracked of trackedProjects) {
+      if (!this.runningProjects.has(tracked.name)) {
+        projects.push(tracked);
+      }
+    }
+    
     return projects;
   }
 
@@ -384,7 +421,7 @@ class ProjectManager {
    * @param {string} projectName - Name of the project
    */
   isProjectRunning(projectName) {
-    return this.runningProjects.has(projectName);
+    return this.runningProjects.has(projectName) || projectTracker.hasProject(projectName);
   }
 
   /**

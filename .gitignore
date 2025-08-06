@@ -40,3 +40,6 @@ Thumbs.db
 
 # User generated projects (exclude from production builds)
 client/user-projects/
+
+# Backend data directory (persistence files)
+backend_node/data/
