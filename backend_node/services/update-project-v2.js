@@ -250,7 +250,8 @@ router.post("/update-project-v2", async (req, res) => {
           console.log('First result sample:', {
             hasFiles: !!taskResults.results[0].files,
             filesType: typeof taskResults.results[0].files,
-            filesSample: taskResults.results[0].files ? Object.keys(taskResults.results[0].files).slice(0, 2) : 'no files'
+            filesSample: taskResults.results[0].files ? Object.keys(taskResults.results[0].files).slice(0, 2) : 'no files',
+            taskIntent: taskResults.results[0].task?.intent
           });
         }
       }
@@ -261,6 +262,21 @@ router.post("/update-project-v2", async (req, res) => {
         console.log('No task results to analyze, assuming simple change');
         return { needsBuild: false, confidence: 0.5, analysis };
       }
+      
+      // Check if all tasks are STYLE or CONTENT changes
+      let isSimpleChange = true;
+      let taskIntents = [];
+      for (const result of taskResults.results) {
+        if (result.task && result.task.intent) {
+          taskIntents.push(result.task.intent);
+          if (result.task.intent !== 'STYLE' && result.task.intent !== 'CONTENT') {
+            isSimpleChange = false;
+          }
+        }
+      }
+      
+      console.log('Task intents detected:', taskIntents);
+      console.log('Is simple change (all STYLE/CONTENT):', isSimpleChange);
       
       // Analyze each generated file
       for (const result of taskResults.results) {
@@ -320,33 +336,38 @@ router.post("/update-project-v2", async (req, res) => {
               if (['.ts', '.tsx', '.jsx', '.js'].includes(ext)) {
                 analysis.hasTypeScriptChanges = true;
                 
-                // Check for imports (new dependencies)
-                if (/^import\s+/m.test(content) && content.includes('from')) {
-                  // Check if it's adding NEW imports (not just modifying existing)
-                  const importCount = (content.match(/^import\s+.*from/gm) || []).length;
-                  if (importCount > 2) { // More than basic React imports
-                    analysis.hasNewImports = true;
+                // Skip complex checks for STYLE/CONTENT changes
+                if (!isSimpleChange) {
+                  // Check for imports (new dependencies)
+                  if (/^import\s+/m.test(content) && content.includes('from')) {
+                    // Check if it's adding NEW imports (not just modifying existing)
+                    const importCount = (content.match(/^import\s+.*from/gm) || []).length;
+                    if (importCount > 2) { // More than basic React imports
+                      analysis.hasNewImports = true;
+                    }
                   }
-                }
-                
-                // Check for exports (new components/functions)
-                if (/export\s+(default\s+)?(function|const|class)/m.test(content)) {
-                  analysis.hasNewExports = true;
-                }
-                
-                // Check for event handlers (any variation)
-                if (/on[A-Z]\w+\s*[=:]/i.test(content) || /addEventListener/i.test(content)) {
-                  analysis.hasEventHandlers = true;
-                }
-                
-                // Check for state management
-                if (/use(State|Reducer|Effect|Callback|Memo)\s*\(/i.test(content)) {
-                  analysis.hasStateManagement = true;
-                }
-                
-                // Check for structural changes (new components, functions)
-                if (/function\s+[A-Z]\w+\s*\(/.test(content) || /const\s+[A-Z]\w+\s*=\s*\(/.test(content)) {
-                  analysis.hasStructuralChanges = true;
+                  
+                  // Check for exports (new components/functions)
+                  if (/export\s+(default\s+)?(function|const|class)/m.test(content)) {
+                    analysis.hasNewExports = true;
+                  }
+                  
+                  // Check for event handlers (any variation)
+                  if (/on[A-Z]\w+\s*[=:]/i.test(content) || /addEventListener/i.test(content)) {
+                    analysis.hasEventHandlers = true;
+                  }
+                  
+                  // Check for state management
+                  if (/use(State|Reducer|Effect|Callback|Memo)\s*\(/i.test(content)) {
+                    analysis.hasStateManagement = true;
+                  }
+                  
+                  // Check for structural changes (new components, functions)
+                  if (/function\s+[A-Z]\w+\s*\(/.test(content) || /const\s+[A-Z]\w+\s*=\s*\(/.test(content)) {
+                    analysis.hasStructuralChanges = true;
+                  }
+                } else {
+                  console.log(`Skipping complexity checks for ${result.task?.intent || 'simple'} change`);
                 }
               }
             }
@@ -367,7 +388,11 @@ router.post("/update-project-v2", async (req, res) => {
       let confidence = 0.9;
       let confidenceReason = 'default';
       
-      if (analysis.filesCount === 1 && analysis.totalLinesChanged < 20) {
+      // For STYLE/CONTENT changes, always have high confidence
+      if (isSimpleChange) {
+        confidence = 0.95;
+        confidenceReason = 'STYLE/CONTENT change detected';
+      } else if (analysis.filesCount === 1 && analysis.totalLinesChanged < 20) {
         confidence = 0.95;
         confidenceReason = 'single file, < 20 lines';
       } else if (analysis.filesCount > 3 || analysis.totalLinesChanged > 200) {
