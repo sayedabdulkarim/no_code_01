@@ -96,9 +96,14 @@ app.use('/project-preview/:projectName*', async (req, res, next) => {
   const { projectName } = req.params;
   const project = globalProjectManager.getProjectInfo(projectName);
   
-  // Extract the full path after project name, including any sub-paths
-  const fullPath = req.params[0] || '/';
-  const pathAfterProject = fullPath.startsWith('/') ? fullPath : `/${fullPath}`;
+  // Extract the full path after project name using originalUrl
+  const projectPrefix = `/project-preview/${projectName}`;
+  let pathAfterProject = req.originalUrl.substring(projectPrefix.length);
+  
+  // If no path after project name, default to /
+  if (!pathAfterProject || pathAfterProject === '') {
+    pathAfterProject = '/';
+  }
   
   // Enhanced logging to debug path issues
   console.log('=== PROXY PATH DEBUG ===');
@@ -106,8 +111,8 @@ app.use('/project-preview/:projectName*', async (req, res, next) => {
   console.log('req.url:', req.url);
   console.log('req.path:', req.path);
   console.log('req.params:', req.params);
-  console.log('fullPath from params[0]:', fullPath);
-  console.log('pathAfterProject:', pathAfterProject);
+  console.log('projectPrefix:', projectPrefix);
+  console.log('pathAfterProject (extracted):', pathAfterProject);
   console.log('req.query:', req.query);
   console.log(`Final: ${req.method} ${pathAfterProject} for ${projectName}`);
   
@@ -127,13 +132,22 @@ app.use('/project-preview/:projectName*', async (req, res, next) => {
     return res.status(404).json({ error: 'Project not found or not running' });
   }
   
-  // Build the target URL with query string
-  const queryString = req.originalUrl.includes('?') ? req.originalUrl.split('?')[1] : '';
-  const targetUrl = `http://localhost:${project.port}${pathAfterProject}${queryString ? '?' + queryString : ''}`;
+  // Extract path and query separately if pathAfterProject contains query
+  let targetPath = pathAfterProject;
+  let queryString = '';
+  
+  if (pathAfterProject.includes('?')) {
+    const parts = pathAfterProject.split('?');
+    targetPath = parts[0];
+    queryString = parts[1];
+  }
+  
+  const targetUrl = `http://localhost:${project.port}${targetPath}${queryString ? '?' + queryString : ''}`;
   
   console.log('=== PROXY TARGET DEBUG ===');
-  console.log('Target URL:', targetUrl);
+  console.log('Target path:', targetPath);
   console.log('Query string:', queryString);
+  console.log('Target URL:', targetUrl);
   
   try {
     // Use axios for simpler proxy handling
