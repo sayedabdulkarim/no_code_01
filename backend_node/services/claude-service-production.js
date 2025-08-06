@@ -257,6 +257,9 @@ Please analyze the existing code and generate new code that integrates seamlessl
       // Log first 500 chars for debugging
       if (finalResponse.length > 0) {
         console.log(`📄 [Claude Service] Response preview: ${finalResponse.substring(0, 500)}...`);
+        // Also log if response contains code blocks
+        const codeBlockCount = (finalResponse.match(/```/g) || []).length / 2;
+        console.log(`📄 [Claude Service] Code blocks found: ${codeBlockCount}`);
       }
 
       return finalResponse;

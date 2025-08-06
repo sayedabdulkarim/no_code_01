@@ -656,6 +656,8 @@ CRITICAL RULES:
         let filesWritten = 0;
         const files = result.files || {};
         
+        console.log(`Task ${task.id} - Files to write:`, Object.keys(files));
+        
         for (const [filePath, content] of Object.entries(files)) {
           const fullPath = path.join(projectPath, filePath);
           
@@ -692,7 +694,8 @@ CRITICAL RULES:
         results.push({
           task: task,
           success: true,
-          filesWritten: filesWritten
+          filesWritten: filesWritten,
+          files: files  // Add the actual files for analysis
         });
         
         // Notify completion

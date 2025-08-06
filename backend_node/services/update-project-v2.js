@@ -505,7 +505,7 @@ router.post("/update-project-v2", async (req, res) => {
         socket.emit('output', '\n\x1b[36m> Restarting development server...\x1b[0m\n');
       }
       try {
-        const projectInfo = await projectManager.startProject(projectPath, socket);
+        const projectInfo = await projectManager.startProject(projectPath, projectName, socket);
         if (socket) {
           socket.emit('output', `\x1b[32m✓ Development server restarted at ${projectInfo.url}\x1b[0m\n`);
         }
