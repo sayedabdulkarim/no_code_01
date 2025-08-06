@@ -169,14 +169,14 @@ IMPORTANT: This is an UPDATE operation. Respect the user's intent as classified.
       console.error("Error creating update task list:", error);
       // Fallback to standard task list if MCP fails
       console.log("Falling back to standard task creation");
-      return this.createTaskList(newRequirements);
+      return this.createTaskList(newRequirements, socketId);
     }
   }
 
   /**
    * Analyze PRD and create a task list
    */
-  async createTaskList(prd) {
+  async createTaskList(prd, socketId = null) {
     const prompt = `
 You are an expert Next.js developer. Analyze this PRD and break it down into specific implementation tasks.
 
@@ -253,7 +253,7 @@ Guidelines:
   /**
    * Generate code for a specific task with MCP context
    */
-  async generateTaskCode(task, prd, existingFiles = {}, projectName = null, projectPath = null) {
+  async generateTaskCode(task, prd, existingFiles = {}, projectName = null, projectPath = null, socketId = null) {
     console.log(`generateTaskCode called: projectName=${projectName}, task=${task.id}`);
     
     // Detect Tailwind version if project path is provided
@@ -268,19 +268,19 @@ Guidelines:
       console.log(`\n🤖 [Task Generator] Using MCP-enhanced generation`);
       console.log(`📁 [Task Generator] Project: ${projectName}`);
       console.log(`📝 [Task Generator] Task: ${task.name}`);
-      return await this.generateTaskCodeWithMCP(task, prd, existingFiles, projectName, tailwindInfo);
+      return await this.generateTaskCodeWithMCP(task, prd, existingFiles, projectName, tailwindInfo, socketId);
     }
     
     // Fall back to standard generation if no project name
     console.log(`\n⚡ [Task Generator] Using standard generation (no MCP)`);
     console.log(`📝 [Task Generator] Task: ${task.name}`);
-    return await this.generateTaskCodeStandard(task, prd, existingFiles, tailwindInfo);
+    return await this.generateTaskCodeStandard(task, prd, existingFiles, tailwindInfo, socketId);
   }
 
   /**
    * Generate code using MCP tools to read existing project files
    */
-  async generateTaskCodeWithMCP(task, prd, existingFiles, projectName, tailwindInfo) {
+  async generateTaskCodeWithMCP(task, prd, existingFiles, projectName, tailwindInfo, socketId) {
     console.log(`🎯 [Task Generator] Starting MCP code generation for: "${task.name}"`);
     
     try {
@@ -344,7 +344,7 @@ CRITICAL: This project uses Tailwind CSS v${tailwindInfo.version}.
 `;
 
       // Use Claude with MCP to generate code
-      const response = await this.claudeService.generateCodeForProject(prompt, projectName);
+      const response = await this.claudeService.generateCodeForProject(prompt, projectName, socketId);
       
       // Parse the response to extract files
       const files = this.parseFilesFromResponse(response);
@@ -363,14 +363,14 @@ CRITICAL: This project uses Tailwind CSS v${tailwindInfo.version}.
     } catch (error) {
       console.error(`Error generating code with MCP for task ${task.id}:`, error);
       // Fallback to standard generation
-      return await this.generateTaskCodeStandard(task, prd, existingFiles);
+      return await this.generateTaskCodeStandard(task, prd, existingFiles, tailwindInfo, socketId);
     }
   }
 
   /**
    * Standard code generation without MCP
    */
-  async generateTaskCodeStandard(task, prd, existingFiles, tailwindInfo) {
+  async generateTaskCodeStandard(task, prd, existingFiles, tailwindInfo, socketId) {
     const existingFilesList = Object.keys(existingFiles).join(", ");
     
     const prompt = `
@@ -616,7 +616,7 @@ CRITICAL RULES:
   /**
    * Execute tasks sequentially with progress tracking
    */
-  async executeTasks(tasks, prd, projectPath, onProgress, projectName = null) {
+  async executeTasks(tasks, prd, projectPath, onProgress, projectName = null, socketId = null) {
     const results = [];
     const generatedFiles = {};
     
@@ -642,7 +642,7 @@ CRITICAL RULES:
         }
         
         // Generate code for the task
-        const result = await this.generateTaskCode(task, prd, generatedFiles, projectName, projectPath);
+        const result = await this.generateTaskCode(task, prd, generatedFiles, projectName, projectPath, socketId);
         
         // Debug result
         console.log(`Task ${task.id} generation result:`, {
@@ -748,10 +748,10 @@ CRITICAL RULES:
   /**
    * Generate code from requirements (main entry point)
    */
-  async generateFromRequirements(requirements, projectPath, projectName = null) {
+  async generateFromRequirements(requirements, projectPath, projectName = null, socketId = null) {
     try {
       // Create task list
-      const taskResult = await this.createTaskList(requirements);
+      const taskResult = await this.createTaskList(requirements, socketId);
       const tasks = taskResult.tasks;
       
       console.log(`Created ${tasks.length} tasks`);
@@ -762,7 +762,8 @@ CRITICAL RULES:
         requirements, 
         projectPath,
         null, // No progress callback for now
-        projectName
+        projectName,
+        socketId
       );
       
       return {

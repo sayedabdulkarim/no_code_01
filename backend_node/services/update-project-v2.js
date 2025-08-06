@@ -139,7 +139,7 @@ router.post("/update-project-v2", async (req, res) => {
       taskResult = await generator.createUpdateTaskList(prd, requirements, projectName, socketId);
     } else {
       // Initial creation - use standard full task list
-      taskResult = await generator.createTaskList(prd);
+      taskResult = await generator.createTaskList(prd, socketId);
     }
     const tasks = taskResult.tasks;
     
@@ -184,7 +184,8 @@ router.post("/update-project-v2", async (req, res) => {
           }
         }
       },
-      projectName  // Pass project name for MCP context
+      projectName,  // Pass project name for MCP context
+      socketId      // Pass socketId for API key access
     );
 
     // Update final progress
