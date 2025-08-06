@@ -156,7 +156,7 @@ IMPORTANT: This is an UPDATE operation. Respect the user's intent as classified.
 
     try {
       // Use Claude with MCP to analyze project and create update tasks
-      const response = await this.claudeService.generateCodeForProject(prompt, projectName);
+      const response = await this.claudeService.generateCodeForProject(prompt, projectName, socketId);
       console.log(`📝 [Task Generator] Raw update task response length: ${response.length}`);
       
       const parsed = this.parseJSON(response);
