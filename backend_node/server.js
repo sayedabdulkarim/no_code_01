@@ -91,13 +91,14 @@ app.get("/health", (req, res) => {
 // Get the global project manager instance (singleton)
 const globalProjectManager = require('./services/project-manager');
 
-// Simple proxy implementation for project preview
-app.use('/project-preview/:projectName', async (req, res, next) => {
+// Simple proxy implementation for project preview - handles all paths including assets
+app.use('/project-preview/:projectName*', async (req, res, next) => {
   const { projectName } = req.params;
   const project = globalProjectManager.getProjectInfo(projectName);
   
-  // Extract the path after project name
-  const pathAfterProject = req.path.substring(`/project-preview/${projectName}`.length) || '/';
+  // Extract the full path after project name, including any sub-paths
+  const fullPath = req.params[0] || '/';
+  const pathAfterProject = fullPath.startsWith('/') ? fullPath : `/${fullPath}`;
   
   console.log(`Project preview: ${req.method} ${pathAfterProject} for ${projectName}`);
   
@@ -221,30 +222,60 @@ app.use('/project-preview/:projectName', async (req, res, next) => {
       res.setHeader('Content-Length', Buffer.byteLength(html));
       res.send(html);
     } else {
-      // For non-HTML, stream the response
+      // For non-HTML, stream the response with correct headers
       res.status(response.status);
+      
+      // Copy all headers except the ones we want to control
       Object.keys(response.headers).forEach(key => {
-        res.setHeader(key, response.headers[key]);
+        const lowerKey = key.toLowerCase();
+        if (!['content-length', 'transfer-encoding', 'content-encoding'].includes(lowerKey)) {
+          res.setHeader(key, response.headers[key]);
+        }
       });
+      
+      // Ensure correct content-type for common file types
+      if (pathAfterProject.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
+      } else if (pathAfterProject.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      } else if (pathAfterProject.endsWith('.json')) {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      }
+      
+      // Set content length
+      res.setHeader('Content-Length', response.data.length);
+      
       res.send(response.data);
     }
   } catch (error) {
-    console.error('Proxy error:', error.message);
+    console.error(`Proxy error for ${pathAfterProject}:`, error.message);
+    console.error(`Full error:`, error);
     
     if (error.code === 'ECONNREFUSED') {
       res.status(503).json({ 
         error: 'Service Unavailable', 
-        message: 'Project server is not responding. It may still be starting up.' 
+        message: 'Project server is not responding. It may still be starting up.',
+        path: pathAfterProject
       });
     } else if (error.code === 'ETIMEDOUT') {
       res.status(504).json({ 
         error: 'Gateway Timeout', 
-        message: 'Request to project server timed out' 
+        message: 'Request to project server timed out',
+        path: pathAfterProject
+      });
+    } else if (error.response && error.response.status === 404) {
+      // Handle 404s from Next.js server
+      res.status(404).json({ 
+        error: 'Not Found', 
+        message: `Resource not found: ${pathAfterProject}`,
+        path: pathAfterProject
       });
     } else {
       res.status(502).json({ 
         error: 'Bad Gateway', 
-        message: error.message 
+        message: error.message,
+        path: pathAfterProject,
+        details: error.response ? `Server responded with ${error.response.status}` : 'Unknown error'
       });
     }
   }
