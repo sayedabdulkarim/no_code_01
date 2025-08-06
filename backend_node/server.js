@@ -359,6 +359,13 @@ app.use('/project-preview/:projectName*', async (req, res, next) => {
 // Make the project manager available to routes
 app.set('projectManager', globalProjectManager);
 
+// Store io reference for other routes
+app.set("io", io);
+
+// Set io instance in project manager for broadcasting
+globalProjectManager.setIo(io);
+
+// IMPORTANT: API routes MUST come before static file serving
 // Include routers
 app.use(generateRouter);
 app.use("/api", generateV2Router);
@@ -376,13 +383,8 @@ app.use("/api", buildValidationRouter);
 app.use(fileSystemRouter);
 app.use("/api", validateApiKeyRouter);
 
-// Store io reference for other routes
-app.set("io", io);
-
-// Set io instance in project manager for broadcasting
-globalProjectManager.setIo(io);
-
 // Serve static files from React build in production
+// This MUST come after API routes to avoid intercepting API calls
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
 }
@@ -583,7 +585,18 @@ io.on("connection", (socket) => {
 });
 
 // Add this at the end of all routes - fallback route for React app
+// This MUST be the very last route handler
 app.get('*', (req, res) => {
+  // Don't catch API routes - they should have been handled above
+  if (req.path.startsWith('/api/')) {
+    console.error(`[404] API route not found: ${req.method} ${req.path}`);
+    return res.status(404).json({ 
+      error: 'API endpoint not found',
+      path: req.path,
+      method: req.method 
+    });
+  }
+  
   if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
   } else {

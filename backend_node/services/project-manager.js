@@ -346,32 +346,62 @@ class ProjectManager {
    * @param {string} projectName - Name of the project to stop
    */
   stopProject(projectName) {
-    const project = this.runningProjects.get(projectName);
-    if (project) {
-      console.log(`Stopping project: ${projectName}`);
-      
-      // Kill the process
-      project.process.kill('SIGTERM');
-      
-      // Force kill after timeout if process doesn't exit gracefully
-      const forceKillTimeout = setTimeout(() => {
-        if (!project.process.killed) {
-          console.log(`Force killing project: ${projectName}`);
-          project.process.kill('SIGKILL');
+    console.log(`[stopProject] Attempting to stop: ${projectName}`);
+    
+    // First check in-memory map
+    let project = this.runningProjects.get(projectName);
+    
+    // If not in memory, check tracker (for production restarts)
+    if (!project) {
+      const trackedProject = projectTracker.getProject(projectName);
+      if (trackedProject) {
+        console.log(`[stopProject] Found ${projectName} in tracker but not in memory`);
+        // For tracked projects without process, we can still clean them up
+        projectTracker.removeProject(projectName);
+        
+        // Try to kill any process on that port (works on Unix-like systems)
+        if (process.platform !== 'win32') {
+          const { exec } = require('child_process');
+          exec(`lsof -ti:${trackedProject.port} | xargs kill -9 2>/dev/null`, (error) => {
+            if (!error) {
+              console.log(`Killed process on port ${trackedProject.port}`);
+            }
+          });
         }
-      }, 5000);
+        
+        return true;
+      }
+    }
+    
+    if (project) {
+      console.log(`[stopProject] Stopping project with process: ${projectName}`);
       
-      // Clean up when process actually exits
-      project.process.once('exit', () => {
-        clearTimeout(forceKillTimeout);
-        console.log(`Project ${projectName} process exited`);
-      });
+      // Kill the process if it exists
+      if (project.process) {
+        project.process.kill('SIGTERM');
+        
+        // Force kill after timeout if process doesn't exit gracefully
+        const forceKillTimeout = setTimeout(() => {
+          if (project.process && !project.process.killed) {
+            console.log(`Force killing project: ${projectName}`);
+            project.process.kill('SIGKILL');
+          }
+        }, 5000);
+        
+        // Clean up when process actually exits
+        project.process.once('exit', () => {
+          clearTimeout(forceKillTimeout);
+          console.log(`Project ${projectName} process exited`);
+        });
+      }
       
       // Remove from map immediately to prevent port conflicts
       this.runningProjects.delete(projectName);
       projectTracker.removeProject(projectName);
       return true;
     }
+    
+    console.log(`[stopProject] Project ${projectName} not found`);
     return false;
   }
 
