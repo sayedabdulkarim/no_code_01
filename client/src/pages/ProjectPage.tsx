@@ -10,6 +10,7 @@ import CubeLoader from "../components/CubeLoader";
 import { Message } from "../types/chat";
 import { CommandSuggestion } from "../types/terminal";
 import { API_ENDPOINTS } from "../config/api";
+import { useSocket } from "../context/SocketContext";
 
 const PageContainer = styled.div`
   width: 100%;
@@ -53,6 +54,7 @@ const ProjectPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
+  const { socket } = useSocket();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoadingState] = useState(false);
@@ -340,6 +342,14 @@ const ProjectPage: React.FC = () => {
     } else if (!isNewProject && projectId) {
       // For existing projects
       setLoading(false); // Ensure loading is false for existing projects
+      
+      // If socket is already connected, establish the socket ID immediately
+      if (socket?.connected && socket?.id) {
+        console.log('Socket already connected when entering project, setting socketId:', socket.id);
+        setSocketId(socket.id);
+        socketIdRef.current = socket.id;
+      }
+      
       checkProjectExists(projectId).then((exists) => {
         // Only show welcome message for truly existing projects, not newly created ones
         if (exists && !hasShownWelcome && projectCreationPhase === "existing") {
@@ -374,8 +384,35 @@ const ProjectPage: React.FC = () => {
     projectCreationPhase,
     checkProjectExists,
     fetchProjectStatus,
+    socket,
   ]);
 
+  // Handle socket connection changes
+  useEffect(() => {
+    if (socket) {
+      const handleSocketConnect = () => {
+        console.log('Socket connected/reconnected with ID:', socket.id);
+        if (socket.id && socket.id !== socketIdRef.current) {
+          console.log('Updating socket ID from', socketIdRef.current, 'to', socket.id);
+          setSocketId(socket.id);
+          socketIdRef.current = socket.id;
+        }
+      };
+
+      // Listen for socket connection events
+      socket.on('connect', handleSocketConnect);
+      
+      // If socket is already connected, handle it immediately
+      if (socket.connected && socket.id && !socketIdRef.current) {
+        handleSocketConnect();
+      }
+
+      return () => {
+        socket.off('connect', handleSocketConnect);
+      };
+    }
+  }, [socket]);
+  
   // Auto-start project when socket becomes ready
   useEffect(() => {
     if (!isNewProject && projectId && socketId && !isProjectRunning && !loading && !isStartingProject) {
@@ -444,6 +481,13 @@ const ProjectPage: React.FC = () => {
             if (data.url) {
               setProjectUrl(data.url);
             }
+            // Re-establish socket ID when server restarts
+            // The socket connection persists, just need to update UI state
+            if (socket?.id) {
+              console.log('Re-establishing socket ID after server restart:', socket.id);
+              setSocketId(socket.id);
+              socketIdRef.current = socket.id;
+            }
             break;
             
           case 'server_stopped':
@@ -457,6 +501,9 @@ const ProjectPage: React.FC = () => {
               },
             ]);
             setIsProjectRunning(false);
+            // Reset socket ID to trigger terminal reconnection when project restarts
+            setSocketId(null);
+            socketIdRef.current = null;
             break;
             
           case 'server_error':

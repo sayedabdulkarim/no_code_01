@@ -1521,19 +1521,32 @@ const Terminal: React.FC<TerminalProps> = ({
   // Notify parent component when socket is ready
   useEffect(() => {
     if (socket && onSocketReady) {
-      socket.on("connect", () => {
+      const handleConnect = () => {
         console.log("Socket connected with ID:", socket?.id);
         if (socket?.id) {
           onSocketReady(socket.id);
         }
-      });
+      };
+
+      socket.on("connect", handleConnect);
 
       // If socket is already connected, notify right away
+      // Use a small delay to ensure the parent component is ready
       if (socket.connected && socket.id) {
-        onSocketReady(socket.id);
+        console.log("Socket already connected, notifying parent with ID:", socket.id);
+        setTimeout(() => {
+          if (socket?.id) {
+            onSocketReady(socket.id);
+          }
+        }, 100);
       }
+
+      // Clean up the listener
+      return () => {
+        socket.off("connect", handleConnect);
+      };
     }
-  }, [onSocketReady]);
+  }, [socket, onSocketReady]);
 
   return <TerminalContainer ref={terminalRef} className="terminal-container" />;
 };
