@@ -100,7 +100,16 @@ app.use('/project-preview/:projectName*', async (req, res, next) => {
   const fullPath = req.params[0] || '/';
   const pathAfterProject = fullPath.startsWith('/') ? fullPath : `/${fullPath}`;
   
-  console.log(`Project preview: ${req.method} ${pathAfterProject} for ${projectName}`);
+  // Enhanced logging to debug path issues
+  console.log('=== PROXY PATH DEBUG ===');
+  console.log('req.originalUrl:', req.originalUrl);
+  console.log('req.url:', req.url);
+  console.log('req.path:', req.path);
+  console.log('req.params:', req.params);
+  console.log('fullPath from params[0]:', fullPath);
+  console.log('pathAfterProject:', pathAfterProject);
+  console.log('req.query:', req.query);
+  console.log(`Final: ${req.method} ${pathAfterProject} for ${projectName}`);
   
   if (!project) {
     if (pathAfterProject === '/' || pathAfterProject === '') {
@@ -118,13 +127,19 @@ app.use('/project-preview/:projectName*', async (req, res, next) => {
     return res.status(404).json({ error: 'Project not found or not running' });
   }
   
-  console.log(`Proxying to http://localhost:${project.port}${pathAfterProject}`);
+  // Build the target URL with query string
+  const queryString = req.originalUrl.includes('?') ? req.originalUrl.split('?')[1] : '';
+  const targetUrl = `http://localhost:${project.port}${pathAfterProject}${queryString ? '?' + queryString : ''}`;
+  
+  console.log('=== PROXY TARGET DEBUG ===');
+  console.log('Target URL:', targetUrl);
+  console.log('Query string:', queryString);
   
   try {
     // Use axios for simpler proxy handling
     const response = await axios({
       method: req.method,
-      url: `http://localhost:${project.port}${pathAfterProject}`,
+      url: targetUrl,
       headers: {
         ...req.headers,
         host: `localhost:${project.port}`,
@@ -134,7 +149,7 @@ app.use('/project-preview/:projectName*', async (req, res, next) => {
         'transfer-encoding': undefined
       },
       data: req.body,
-      params: req.query,
+      // Don't use params since we're including query in URL
       timeout: 25000, // 25 second timeout
       responseType: 'arraybuffer', // Get raw data
       validateStatus: () => true, // Don't throw on any status
