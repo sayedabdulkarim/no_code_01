@@ -821,6 +821,21 @@ const ProjectPage: React.FC = () => {
         setLoading(false); // Stop loading after PRD is generated
       } else if (projectCreationPhase === "existing" && projectId) {
         // Handle updates for existing project only (not during initial creation)
+        
+        // In production, check if we have an API key before proceeding
+        if (requiresUserApiKey() && !apiKey) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "agent",
+              content: "Please provide your Anthropic API key to update the project.",
+              category: "error",
+            },
+          ]);
+          // The modal will automatically show since showModal is true when no key exists
+          return;
+        }
+        
         setIsGenerating(true);
         setGeneratingMessage(`Updating ${projectId} to implement your changes...`);
         addStatusMessage("Processing your update request...", "processing", "status-update-request");
@@ -861,6 +876,19 @@ const ProjectPage: React.FC = () => {
       } else if (projectCreationPhase === "created" && projectId) {
         // After initial project creation is complete, handle as updates
         setProjectCreationPhase("existing"); // Convert to existing project
+        
+        // In production, check if we have an API key before proceeding
+        if (requiresUserApiKey() && !apiKey) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "agent",
+              content: "Please provide your Anthropic API key to update the project.",
+              category: "error",
+            },
+          ]);
+          return;
+        }
         
         // Now handle as update
         setIsGenerating(true);

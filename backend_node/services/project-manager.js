@@ -61,6 +61,18 @@ class ProjectManager {
         console.log('No .next directory to clean');
       }
       
+      // In production, clean up conflicting lockfiles
+      if (process.env.NODE_ENV === 'production') {
+        try {
+          // Remove yarn.lock if it exists (we use npm)
+          const yarnLock = path.join(projectPath, 'yarn.lock');
+          await fs.rm(yarnLock, { force: true });
+          console.log('Removed yarn.lock to prevent conflicts');
+        } catch (e) {
+          // File might not exist, that's ok
+        }
+      }
+      
       // Also clean node_modules cache
       try {
         await fs.rm(nodeModulesCacheDir, { recursive: true, force: true });
@@ -143,7 +155,9 @@ class ProjectManager {
       }
 
       // Start the Next.js development server
-      const childProcess = spawn('npm', ['run', 'dev', '--', '--port', port.toString()], {
+      // In production, we need to be more careful with paths and environment
+      const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+      const childProcess = spawn(npmCommand, ['run', 'dev', '--', '--port', port.toString()], {
         cwd: projectPath,
         env: {
           ...process.env,
@@ -153,11 +167,14 @@ class ProjectManager {
           NODE_OPTIONS: '--inspect=false',
           // Ensure Next.js uses the correct port
           NEXT_TELEMETRY_DISABLED: '1', // Disable telemetry to reduce startup time
-          npm_config_loglevel: 'error' // Reduce npm noise
+          npm_config_loglevel: 'error', // Reduce npm noise
+          // Force npm to use the project's lockfile
+          npm_config_package_lock_only: 'false'
         },
-        shell: true,
+        shell: process.platform === 'win32', // Only use shell on Windows
         // Ensure proper signal handling
-        detached: false
+        detached: false,
+        stdio: ['pipe', 'pipe', 'pipe']
       });
 
       // Handle stdout
@@ -269,15 +286,20 @@ class ProjectManager {
       // Wait a bit for the server to start, but check if process is still alive
       let serverStarted = false;
       let attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 20; // More attempts for production
       
       while (!serverStarted && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait longer in production
         attempts++;
         
         // Check if process is still running
-        if (childProcess.killed || childProcess.exitCode !== null) {
-          throw new Error(`Process exited prematurely with code ${childProcess.exitCode}`);
+        if (childProcess.killed) {
+          throw new Error(`Process was killed`);
+        }
+        
+        // Check if process exited (but only throw error for non-zero exit codes)
+        if (childProcess.exitCode !== null && childProcess.exitCode !== 0) {
+          throw new Error(`Process exited with error code ${childProcess.exitCode}`);
         }
         
         // Check if we can connect to the server
