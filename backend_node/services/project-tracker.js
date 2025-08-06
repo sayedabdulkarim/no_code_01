@@ -69,12 +69,18 @@ class ProjectTracker {
     const net = require('net');
     return new Promise((resolve) => {
       const tester = net.createServer()
-        .once('error', () => resolve(true))  // Port in use
+        .once('error', (err) => {
+          if (err.code === 'EADDRINUSE') {
+            resolve(true);  // Port in use
+          } else {
+            resolve(false); // Other error, assume port is free
+          }
+        })
         .once('listening', () => {
           tester.once('close', () => resolve(false))  // Port free
             .close();
         })
-        .listen(port, '127.0.0.1');
+        .listen(port, '0.0.0.0');  // Listen on all interfaces
     });
   }
   
@@ -127,6 +133,6 @@ const projectTracker = new ProjectTracker();
 // Periodically clean up stale projects
 setInterval(() => {
   projectTracker.cleanupStaleProjects();
-}, 60000); // Every minute
+}, 300000); // Every 5 minutes (less aggressive)
 
 module.exports = projectTracker;

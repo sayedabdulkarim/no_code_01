@@ -372,14 +372,12 @@ const ProjectPage: React.FC = () => {
         // Only show welcome message for truly existing projects, not newly created ones
         if (exists && !hasShownWelcome && projectCreationPhase === "existing") {
           setHasShownWelcome(true);
-          setMessages((prev) => [
-            ...prev,
-            {
-              type: "agent",
-              content: `Welcome back to ${projectId}! How can I help you update your project?`,
-              category: "success",
-            },
-          ]);
+          // Clear any existing messages and show only one welcome message
+          setMessages([{
+            type: "agent",
+            content: `Welcome back to ${projectId}! How can I help you update your project?`,
+            category: "success",
+          }]);
           // Fetch project status first, don't show messages on initial check
           fetchProjectStatus(projectId, false).then((isRunning) => {
             // If project is not running and socket is ready, start it
