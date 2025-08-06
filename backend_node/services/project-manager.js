@@ -329,7 +329,25 @@ class ProjectManager {
     const project = this.runningProjects.get(projectName);
     if (project) {
       console.log(`Stopping project: ${projectName}`);
+      
+      // Kill the process
       project.process.kill('SIGTERM');
+      
+      // Force kill after timeout if process doesn't exit gracefully
+      const forceKillTimeout = setTimeout(() => {
+        if (!project.process.killed) {
+          console.log(`Force killing project: ${projectName}`);
+          project.process.kill('SIGKILL');
+        }
+      }, 5000);
+      
+      // Clean up when process actually exits
+      project.process.once('exit', () => {
+        clearTimeout(forceKillTimeout);
+        console.log(`Project ${projectName} process exited`);
+      });
+      
+      // Remove from map immediately to prevent port conflicts
       this.runningProjects.delete(projectName);
       return true;
     }

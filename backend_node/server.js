@@ -81,6 +81,11 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: true,
   },
+  // Add Socket.io timeout configurations to prevent disconnections during long operations
+  pingTimeout: 60000,    // 60 seconds before considering the connection closed
+  pingInterval: 25000,   // 25 seconds between pings
+  upgradeTimeout: 30000, // 30 seconds for the HTTP long-polling upgrade
+  maxHttpBufferSize: 1e8 // 100 MB - for large code generation responses
 });
 
 // Health check endpoint

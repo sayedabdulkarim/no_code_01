@@ -160,33 +160,50 @@ router.post("/update-project-v2", async (req, res) => {
     });
 
     // Step 2: Execute tasks with progress tracking (now with MCP support)
-    const results = await generator.executeTasks(
-      tasks, 
-      prd, 
-      projectPath,
-      (progress) => {
-        // Update progress
-        projectProgress.set(projectName, {
-          totalTasks: progress.totalTasks,
-          completedTasks: progress.status === 'completed' ? progress.currentTask : progress.currentTask - 1,
-          currentTask: progress.taskName,
-          status: progress.status === 'failed' ? 'partial' : 'in_progress'
-        });
+    console.log(`Starting task execution for ${tasks.length} tasks...`);
+    
+    let results;
+    try {
+      results = await generator.executeTasks(
+        tasks, 
+        prd, 
+        projectPath,
+        (progress) => {
+          console.log(`Task progress:`, progress);
+          
+          // Update progress
+          projectProgress.set(projectName, {
+            totalTasks: progress.totalTasks,
+            completedTasks: progress.status === 'completed' ? progress.currentTask : progress.currentTask - 1,
+            currentTask: progress.taskName,
+            status: progress.status === 'failed' ? 'partial' : 'in_progress'
+          });
 
-        // Send progress to socket
-        if (socket) {
-          if (progress.status === 'generating') {
-            socket.emit('output', `\x1b[36m> Task ${progress.currentTask}/${progress.totalTasks}: ${progress.taskName}...\x1b[0m\n`);
-          } else if (progress.status === 'completed') {
-            socket.emit('output', `\x1b[32m✓ Completed: ${progress.taskName}\x1b[0m\n`);
-          } else if (progress.status === 'failed') {
-            socket.emit('output', `\x1b[31m✗ Failed: ${progress.taskName} - ${progress.error}\x1b[0m\n`);
+          // Send progress to socket
+          if (socket && socket.connected) {
+            if (progress.status === 'generating') {
+              socket.emit('output', `\x1b[36m> Task ${progress.currentTask}/${progress.totalTasks}: ${progress.taskName}...\x1b[0m\n`);
+            } else if (progress.status === 'completed') {
+              socket.emit('output', `\x1b[32m✓ Completed: ${progress.taskName}\x1b[0m\n`);
+            } else if (progress.status === 'failed') {
+              socket.emit('output', `\x1b[31m✗ Failed: ${progress.taskName} - ${progress.error}\x1b[0m\n`);
+            }
+          } else if (!socket?.connected) {
+            console.warn('Socket disconnected during task execution');
           }
-        }
-      },
-      projectName,  // Pass project name for MCP context
-      socketId      // Pass socketId for API key access
-    );
+        },
+        projectName,  // Pass project name for MCP context
+        socketId      // Pass socketId for API key access
+      );
+    } catch (taskError) {
+      console.error('Error during task execution:', taskError);
+      throw taskError;
+    }
+    
+    console.log('Task execution completed:', {
+      summary: results.summary,
+      resultsCount: results.results?.length
+    });
 
     // Update final progress
     projectProgress.set(projectName, {
