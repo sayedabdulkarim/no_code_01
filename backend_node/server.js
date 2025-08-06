@@ -99,7 +99,18 @@ const globalProjectManager = require('./services/project-manager');
 // Simple proxy implementation for project preview - handles all paths including assets
 app.use('/project-preview/:projectName*', async (req, res, next) => {
   const { projectName } = req.params;
+  
+  // Log all running projects for debugging
+  const allProjects = globalProjectManager.getAllRunningProjects();
+  console.log('=== PROXY DEBUG ===');
+  console.log('Requested project:', projectName);
+  console.log('All running projects:', allProjects.map(p => p.name));
+  
   const project = globalProjectManager.getProjectInfo(projectName);
+  console.log('Found project?:', !!project);
+  if (project) {
+    console.log('Project info:', { name: projectName, port: project.port, url: project.url });
+  }
   
   // Extract the full path after project name using originalUrl
   const projectPrefix = `/project-preview/${projectName}`;
@@ -111,14 +122,8 @@ app.use('/project-preview/:projectName*', async (req, res, next) => {
   }
   
   // Enhanced logging to debug path issues
-  console.log('=== PROXY PATH DEBUG ===');
   console.log('req.originalUrl:', req.originalUrl);
-  console.log('req.url:', req.url);
-  console.log('req.path:', req.path);
-  console.log('req.params:', req.params);
-  console.log('projectPrefix:', projectPrefix);
-  console.log('pathAfterProject (extracted):', pathAfterProject);
-  console.log('req.query:', req.query);
+  console.log('pathAfterProject:', pathAfterProject);
   console.log(`Final: ${req.method} ${pathAfterProject} for ${projectName}`);
   
   if (!project) {
