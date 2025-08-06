@@ -7,17 +7,17 @@ export default function Home() {
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-orange-500 mb-2 relative inline-block px-4 py-2 group">
+          <h1 className="text-3xl font-bold text-pink-500 mb-2 relative inline-block px-4 py-2 group">
             <span className="relative z-10">Color Picker Tool</span>
             {/* Enhanced sliding border animation */}
-            <span className="absolute inset-x-0 bottom-0 h-0.5 bg-orange-500 transform scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
-            <span className="absolute inset-x-0 top-0 h-0.5 bg-orange-500 transform scale-x-0 origin-right transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
-            <span className="absolute inset-y-0 left-0 w-0.5 bg-orange-500 transform scale-y-0 origin-bottom transition-transform duration-300 ease-out group-hover:scale-y-100"></span>
-            <span className="absolute inset-y-0 right-0 w-0.5 bg-orange-500 transform scale-y-0 origin-top transition-transform duration-300 ease-out group-hover:scale-y-100"></span>
+            <span className="absolute inset-x-0 bottom-0 h-0.5 bg-pink-500 transform scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
+            <span className="absolute inset-x-0 top-0 h-0.5 bg-pink-500 transform scale-x-0 origin-right transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
+            <span className="absolute inset-y-0 left-0 w-0.5 bg-pink-500 transform scale-y-0 origin-bottom transition-transform duration-300 ease-out group-hover:scale-y-100"></span>
+            <span className="absolute inset-y-0 right-0 w-0.5 bg-pink-500 transform scale-y-0 origin-top transition-transform duration-300 ease-out group-hover:scale-y-100"></span>
           </h1>
           <p className="text-gray-600 group relative inline-block">
             <span className="relative z-10">Select colors and get their hex codes instantly</span>
-            <span className="absolute bottom-0 left-0 w-full h-0.5 bg-orange-400 transform scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
+            <span className="absolute bottom-0 left-0 w-full h-0.5 bg-pink-400 transform scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
           </p>
           <p className="text-gray-600 mt-4 max-w-2xl mx-auto">
             Our intuitive color picker provides a full spectrum of colors at your fingertips. Whether you're a designer, developer, or creative professional, you can easily select colors, view their hex codes in real-time, and copy them with a single click. Use the interactive color spectrum or choose from preset colors to find the perfect shade for your project. The tool works entirely in your browser and provides instant feedback as you explore different colors.

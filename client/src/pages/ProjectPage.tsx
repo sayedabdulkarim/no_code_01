@@ -11,6 +11,9 @@ import { Message } from "../types/chat";
 import { CommandSuggestion } from "../types/terminal";
 import { API_ENDPOINTS } from "../config/api";
 import { useSocket } from "../context/SocketContext";
+import { useApiKey } from "../hooks/useApiKey";
+import ApiKeyModal from "../components/ApiKeyModal";
+import { requiresUserApiKey } from "../utils/environment";
 
 const PageContainer = styled.div`
   width: 100%;
@@ -55,6 +58,7 @@ const ProjectPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { socket } = useSocket();
+  const { apiKey, showModal, setApiKey } = useApiKey();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoadingState] = useState(false);
@@ -347,8 +351,11 @@ const ProjectPage: React.FC = () => {
       setRequirement(initialRequirement);
       // Mark as processed to prevent duplicate calls
       setHasProcessedInitialRequirement(true);
-      // Automatically generate PRD for new project (only once)
-      handleSendMessage(initialRequirement);
+      // In development, always proceed. In production, wait for API key
+      if (!requiresUserApiKey() || apiKey) {
+        // Automatically generate PRD for new project (only once)
+        handleSendMessage(initialRequirement);
+      }
       setIsInitializing(false);
     } else if (!isNewProject && projectId) {
       // For existing projects
@@ -396,7 +403,16 @@ const ProjectPage: React.FC = () => {
     checkProjectExists,
     fetchProjectStatus,
     socket,
+    apiKey,
   ]);
+  
+  // Trigger PRD generation after API key is set for new projects (only in production)
+  useEffect(() => {
+    if (requiresUserApiKey() && isNewProject && initialRequirement && apiKey && !prd && projectCreationPhase === "initial" && hasProcessedInitialRequirement) {
+      // Now that we have an API key, generate the PRD
+      handleSendMessage(initialRequirement);
+    }
+  }, [apiKey]); // Only trigger when apiKey changes
 
   // Handle socket connection changes
   useEffect(() => {
@@ -1120,8 +1136,14 @@ const ProjectPage: React.FC = () => {
   };
 
   return (
-    <PageContainer>
-      <LeftPanel>
+    <>
+      {showModal && (
+        <ApiKeyModal
+          onValidKey={setApiKey}
+        />
+      )}
+      <PageContainer>
+        <LeftPanel>
         {prd ? (
           <PRDPanel
             prd={prd}
@@ -1161,7 +1183,8 @@ const ProjectPage: React.FC = () => {
           onTabChange={handleTabChange}
         />
       </RightPanel>
-    </PageContainer>
+      </PageContainer>
+    </>
   );
 };
 
