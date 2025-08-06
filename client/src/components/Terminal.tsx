@@ -1468,14 +1468,22 @@ const Terminal: React.FC<TerminalProps> = ({
         timeoutIdsRef.current = [];
       }
 
-      // Cleanup socket connection
+      // Cleanup socket listeners only - DO NOT disconnect the shared socket
       if (socket) {
         try {
-          socket.off('project:status'); // Remove the listener
-          socket.disconnect();
-          console.log("Socket disconnected");
+          // Remove all listeners we added
+          socket.off('connect');
+          socket.off('project:status');
+          socket.off('output');
+          socket.off('connect_error');
+          socket.off('disconnect');
+          socket.off('reconnect');
+          socket.off('reconnect_attempt');
+          socket.off('reconnect_failed');
+          // DO NOT disconnect the socket - it's shared across the app via SocketContext
+          console.log("Socket listeners cleaned up (socket NOT disconnected)");
         } catch (socketErr) {
-          console.error("Error disconnecting socket:", socketErr);
+          console.error("Error removing socket listeners:", socketErr);
         }
       }
 
@@ -1520,12 +1528,22 @@ const Terminal: React.FC<TerminalProps> = ({
 
   // Notify parent component when socket is ready
   useEffect(() => {
+    console.log('=== TERMINAL SOCKET READY EFFECT ===');
+    console.log('Socket exists?:', !!socket);
+    console.log('Socket connected?:', socket?.connected);
+    console.log('Socket ID:', socket?.id);
+    console.log('onSocketReady exists?:', !!onSocketReady);
+    console.log('=====================================');
+    
     if (socket && onSocketReady) {
       const handleConnect = () => {
+        console.log("=== TERMINAL SOCKET CONNECT ===");
         console.log("Socket connected with ID:", socket?.id);
         if (socket?.id) {
+          console.log('Calling onSocketReady with:', socket.id);
           onSocketReady(socket.id);
         }
+        console.log('================================');
       };
 
       socket.on("connect", handleConnect);
@@ -1536,6 +1554,7 @@ const Terminal: React.FC<TerminalProps> = ({
         console.log("Socket already connected, notifying parent with ID:", socket.id);
         setTimeout(() => {
           if (socket?.id) {
+            console.log('Delayed call to onSocketReady with:', socket.id);
             onSocketReady(socket.id);
           }
         }, 100);
@@ -1543,6 +1562,7 @@ const Terminal: React.FC<TerminalProps> = ({
 
       // Clean up the listener
       return () => {
+        console.log('Cleaning up socket connect listener');
         socket.off("connect", handleConnect);
       };
     }

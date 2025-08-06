@@ -26,12 +26,15 @@ const TerminalWithHeader: React.FC<TerminalWithHeaderProps> = ({
   socketId,
   loading,
 }) => {
+  console.log('=== TERMINAL WITH HEADER RENDER ===');
+  console.log('socketId prop:', socketId);
+  console.log('onSocketReady prop:', !!onSocketReady);
+  console.log('===================================');
   // Show "Connecting..." initially instead of "Disconnected"
   const getConnectionText = () => {
-    if (socketId === null) {
-      return "Connecting...";
-    }
-    return socketId ? "Connected" : "Disconnected";
+    const text = socketId === null ? "Connecting..." : (socketId ? "Connected" : "Disconnected");
+    console.log('Connection text:', text, 'for socketId:', socketId);
+    return text;
   };
 
   const getStatusDotState = () => {

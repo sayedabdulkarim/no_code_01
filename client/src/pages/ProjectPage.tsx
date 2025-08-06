@@ -165,7 +165,15 @@ const ProjectPage: React.FC = () => {
   const startProject = useCallback(async () => {
     if (!projectId || isNewProject || isStartingProject) return;
 
-    console.log('Starting project:', projectId, 'with socketId:', socketId);
+    console.log('=== START PROJECT DEBUG ===');
+    console.log('Starting project:', projectId);
+    console.log('Current socketId:', socketId);
+    console.log('Current socketIdRef:', socketIdRef.current);
+    console.log('Socket object:', socket);
+    console.log('Socket connected?:', socket?.connected);
+    console.log('Socket ID from socket object:', socket?.id);
+    console.log('=========================');
+    
     setIsStartingProject(true);
     setLoading(true);
     setIsBuildComplete(false); // Disable tabs during build
@@ -187,10 +195,13 @@ const ProjectPage: React.FC = () => {
         throw new Error("Project not found");
       }
 
-      console.log('Calling /api/run-project with:', { projectName: projectId, socketId });
+      // Use the current socket ID from the socket object if our state is null
+      const effectiveSocketId = socketId || socket?.id || null;
+      console.log('Calling /api/run-project with effectiveSocketId:', effectiveSocketId);
+      
       const response = await axios.post<StartProjectResponse>(
         API_ENDPOINTS.RUN_PROJECT,
-        { projectName: projectId, socketId }
+        { projectName: projectId, socketId: effectiveSocketId }
       );
 
       console.log('Run project response:', response.data);
@@ -391,19 +402,24 @@ const ProjectPage: React.FC = () => {
   useEffect(() => {
     if (socket) {
       const handleSocketConnect = () => {
+        console.log('=== SOCKET CONNECT EVENT ===');
         console.log('Socket connected/reconnected with ID:', socket.id);
-        if (socket.id && socket.id !== socketIdRef.current) {
-          console.log('Updating socket ID from', socketIdRef.current, 'to', socket.id);
+        console.log('Previous socketIdRef:', socketIdRef.current);
+        
+        if (socket.id) {
+          console.log('Setting socket ID to:', socket.id);
           setSocketId(socket.id);
           socketIdRef.current = socket.id;
         }
+        console.log('============================');
       };
 
       // Listen for socket connection events
       socket.on('connect', handleSocketConnect);
       
       // If socket is already connected, handle it immediately
-      if (socket.connected && socket.id && !socketIdRef.current) {
+      if (socket.connected && socket.id) {
+        console.log('Socket already connected on mount, calling handleSocketConnect');
         handleSocketConnect();
       }
 
@@ -415,6 +431,15 @@ const ProjectPage: React.FC = () => {
   
   // Auto-start project when socket becomes ready
   useEffect(() => {
+    console.log('=== AUTO-START CHECK ===');
+    console.log('isNewProject:', isNewProject);
+    console.log('projectId:', projectId);
+    console.log('socketId:', socketId);
+    console.log('isProjectRunning:', isProjectRunning);
+    console.log('loading:', loading);
+    console.log('isStartingProject:', isStartingProject);
+    console.log('========================');
+    
     if (!isNewProject && projectId && socketId && !isProjectRunning && !loading && !isStartingProject) {
       // Check if project exists and is not running, then start it
       fetchProjectStatus(projectId, false).then((isRunning) => {
@@ -491,7 +516,13 @@ const ProjectPage: React.FC = () => {
             break;
             
           case 'server_stopped':
-            console.log('Server stopped');
+            console.log('=== SERVER STOPPED EVENT ===');
+            console.log('Current socketId:', socketId);
+            console.log('Current socketIdRef:', socketIdRef.current);
+            console.log('Socket still connected?:', socket?.connected);
+            console.log('Socket ID from socket:', socket?.id);
+            console.log('============================');
+            
             setMessages((prev) => [
               ...prev,
               {
@@ -501,9 +532,12 @@ const ProjectPage: React.FC = () => {
               },
             ]);
             setIsProjectRunning(false);
-            // Reset socket ID to trigger terminal reconnection when project restarts
-            setSocketId(null);
-            socketIdRef.current = null;
+            // Keep socket ID - the socket connection persists
+            // Ensure state and ref are in sync
+            if (socket?.connected && socket?.id) {
+              setSocketId(socket.id);
+              socketIdRef.current = socket.id;
+            }
             break;
             
           case 'server_error':
@@ -708,7 +742,7 @@ const ProjectPage: React.FC = () => {
     return () => {
       window.removeEventListener('project:status', handleProjectStatus as EventListener);
     };
-  }, [projectId, addStatusMessage, updateStatusMessage, projectCreationPhase]);
+  }, [projectId, addStatusMessage, updateStatusMessage, projectCreationPhase, socket]);
 
   const handleSendMessage = async (message: string) => {
     console.log("handleSendMessage called with:", message, "phase:", projectCreationPhase);

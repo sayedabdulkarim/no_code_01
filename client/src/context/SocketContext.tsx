@@ -33,7 +33,9 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     });
 
     newSocket.on('connect', () => {
+      console.log('=== SOCKET CONTEXT CONNECT ===');
       console.log('Socket connected:', newSocket.id);
+      console.log('===============================');
       setIsConnected(true);
       
       // Send stored API key if available
@@ -45,7 +47,9 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     });
 
     newSocket.on('disconnect', () => {
+      console.log('=== SOCKET CONTEXT DISCONNECT ===');
       console.log('Socket disconnected');
+      console.log('==================================');
       setIsConnected(false);
     });
 

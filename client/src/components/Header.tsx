@@ -196,9 +196,21 @@ const Header: React.FC = () => {
   }, [socket]);
 
   const handleStopProject = async (projectName: string) => {
+    console.log('=== STOPPING PROJECT ===');
+    console.log('Project name:', projectName);
+    console.log('Current socket:', socket);
+    console.log('Socket connected?:', socket?.connected);
+    console.log('Socket ID:', socket?.id);
+    console.log('========================');
+    
     setStoppingProject(projectName);
     try {
       await axios.post(API_ENDPOINTS.STOP_PROJECT, { projectName });
+      
+      console.log('Stop API call completed');
+      console.log('Socket still connected?:', socket?.connected);
+      console.log('Socket ID after stop:', socket?.id);
+      
       await fetchRunningProjects();
     } catch (error) {
       console.error('Error stopping project:', error);
