@@ -3,7 +3,7 @@ import styled from "@emotion/styled";
 import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
 import "./App.css";
-import { API_ENDPOINTS } from "./config/api";
+import { API_ENDPOINTS, API_BASE_URL } from "./config/api";
 import { ChatThread } from "./components/ChatThread";
 import { EditorPanel } from "./components/EditorPanel";
 import { Layout, WorkspaceLayout } from "./components/Layout";
@@ -171,7 +171,7 @@ function App() {
     try {
       // Generate PRD first
       const prdResult = await axios.post<PRDResponse>(
-        "${API_BASE_URL}/generate-prd",
+        `${API_BASE_URL}/generate-prd`,
         { requirement: message }
       );
 
@@ -212,7 +212,7 @@ function App() {
     setLoading(true);
     try {
       const result = await axios.post<GenerateResponse>(
-        "${API_BASE_URL}/approve-prd",
+        `${API_BASE_URL}/approve-prd`,
         { requirement, prd, approved }
       );
 
@@ -275,7 +275,7 @@ function App() {
       addMessage(`Initializing project with socket ID: ${socketId}`, false);
 
       const result = await axios.post(
-        "${API_BASE_URL}/api/initialize-project",
+        `${API_BASE_URL}/api/initialize-project`,
         { prd, socketId }
       );
 
@@ -308,7 +308,7 @@ function App() {
       try {
         // Try the new v2 endpoint first
         updateResult = await axios.post(
-          "${API_BASE_URL}/api/update-project-v2",
+          `${API_BASE_URL}/api/update-project-v2`,
           {
             projectName,
             requirements: prd,
@@ -350,7 +350,7 @@ function App() {
         // Fallback to original update-project endpoint
         try {
           updateResult = await axios.post(
-            "${API_BASE_URL}/api/update-project",
+            `${API_BASE_URL}/api/update-project`,
             {
               projectName,
               requirements: prd,
@@ -449,7 +449,7 @@ function App() {
   // Extract fetchProjects as a reusable function
   const fetchProjects = async () => {
     try {
-      const result = await axios.get("${API_BASE_URL}/api/list-projects");
+      const result = await axios.get(`${API_BASE_URL}/api/list-projects`);
       console.log("Fetched projects:", result.data);
       setProjects(result.data.projects || []);
     } catch (err) {
@@ -592,14 +592,14 @@ function App() {
       // First, stop all running projects
       try {
         const runningProjects = await axios.get(
-          "${API_BASE_URL}/api/running-projects"
+          `${API_BASE_URL}/api/running-projects`
         );
         const projects = runningProjects.data.projects || [];
 
         // Stop all running projects
         for (const project of projects) {
           addMessage(`Stopping ${project.name}...`, false);
-          await axios.post("${API_BASE_URL}/api/stop-project", {
+          await axios.post(`${API_BASE_URL}/api/stop-project`, {
             projectName: project.name,
           });
         }
@@ -608,7 +608,7 @@ function App() {
       }
 
       // Run the selected project
-      const result = await axios.post("${API_BASE_URL}/api/run-project", {
+      const result = await axios.post(`${API_BASE_URL}/api/run-project`, {
         projectName,
         socketId,
       });
@@ -686,7 +686,7 @@ function App() {
                 onClick={async () => {
                   try {
                     const response = await axios.post(
-                      "${API_BASE_URL}/api/fix-page-integration",
+                      `${API_BASE_URL}/api/fix-page-integration`,
                       { projectName: selectedProject }
                     );
                     addMessage(`✅ ${response.data.message}`, false);
