@@ -262,16 +262,23 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onValidKey }) => {
           </Subtitle>
         </Header>
 
-        <Form onSubmit={handleSubmit}>
+        <Form onSubmit={handleSubmit} autoComplete="off">
           <InputGroup>
             <Label htmlFor="apiKey">Anthropic API Key</Label>
             <Input
               id="apiKey"
+              name="apiKey"
               type="text"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="sk-ant-api03-..."
               disabled={isLoading}
+              autoComplete="new-password"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              data-lpignore="true"
+              data-1p-ignore="true"
               autoFocus
             />
           </InputGroup>
