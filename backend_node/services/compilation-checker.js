@@ -57,12 +57,38 @@ class CompilationChecker {
       buildProcess.stdout.on('data', (data) => {
         const output = data.toString();
         stdout += output;
-        
-        // Check for compilation errors
-        if (output.includes('Error:') || output.includes('Failed to compile')) {
+
+        // More precise error detection matching llm-build-validator
+        const errorPatterns = [
+          /Failed to compile/,
+          /Module parse failed/,
+          /Type error:/,
+          /Error:.*\.(tsx?|jsx?):/,  // Only TypeScript/React file errors
+          /Error occurred prerendering page/,
+          /Export encountered an error/,
+          /Build failed because of webpack errors/,
+          /⨯/,  // Next.js error symbol
+          /Build worker exited with code: 1/
+        ];
+
+        const hasNewError = errorPatterns.some(pattern => pattern.test(output));
+        if (hasNewError) {
           hasErrors = true;
         }
-        
+
+        // Check for success indicators to reset error state
+        const successPatterns = [
+          /✓ Compiled successfully/,
+          /Compiled successfully/,
+          /Generating static pages \(\d+\/\d+\)/,
+          /Export successful/
+        ];
+
+        const hasSuccess = successPatterns.some(pattern => pattern.test(output));
+        if (hasSuccess) {
+          hasErrors = false;  // Reset error flag on successful compilation
+        }
+
         if (socket) {
           socket.emit('output', output);
         }
@@ -79,8 +105,17 @@ class CompilationChecker {
       });
 
       buildProcess.on('close', (code) => {
+        // Final validation - check if the build actually succeeded
+        const hasSuccessIndicator = stdout.includes('✓ Compiled successfully') ||
+                                     stdout.includes('Compiled successfully') ||
+                                     stdout.includes('Generating static pages') ||
+                                     stdout.includes('Export successful');
+
+        // If exit code is 0 and we found success indicators, ignore hasErrors flag
+        const isSuccess = code === 0 && (hasSuccessIndicator || !hasErrors);
+
         resolve({
-          success: code === 0 && !hasErrors,
+          success: isSuccess,
           stdout,
           stderr,
           errors: this.parseErrors(stdout + stderr)

@@ -13,6 +13,56 @@ const router = express.Router();
 // Store task progress for each project
 const projectProgress = new Map();
 
+/**
+ * Run TypeScript type checking without full build
+ * Used when dev server is running to avoid .next corruption
+ */
+async function runTypeScriptCheck(projectPath, socket) {
+  const { spawn } = require('child_process');
+
+  if (socket) {
+    socket.emit('output', '\x1b[36m> Running TypeScript check (without build)...\x1b[0m\n');
+  }
+
+  return new Promise((resolve) => {
+    // Use npx tsc --noEmit for type checking only
+    const tscProcess = spawn('npx', ['tsc', '--noEmit'], {
+      cwd: projectPath,
+      shell: true
+    });
+
+    let output = '';
+    let hasErrors = false;
+
+    tscProcess.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+
+    tscProcess.stderr.on('data', (data) => {
+      const errorOutput = data.toString();
+      output += errorOutput;
+
+      // Check for TypeScript errors
+      if (errorOutput.includes('error TS')) {
+        hasErrors = true;
+      }
+
+      if (socket) {
+        socket.emit('output', `\x1b[31m${errorOutput}\x1b[0m`);
+      }
+    });
+
+    tscProcess.on('close', (code) => {
+      resolve({
+        success: code === 0 && !hasErrors,
+        output,
+        skipped: false,
+        typeCheckOnly: true
+      });
+    });
+  });
+}
+
 // POST /update-project-v2 - Task-based project update
 router.post("/update-project-v2", async (req, res) => {
   const { projectName, requirements, socketId } = req.body;
@@ -39,20 +89,45 @@ router.post("/update-project-v2", async (req, res) => {
   try {
     console.log(`Starting update-project-v2 for project: ${projectName}`);
     console.log(`Update requirements: "${requirements}"`);
-    
-    // Stop the dev server if it's running to prevent build cache corruption
-    projectWasRunning = projectManager.stopProject(projectName);
-    if (projectWasRunning) {
-      console.log(`Stopped running dev server for ${projectName}`);
+
+    // Check if dev server is already running
+    projectWasRunning = projectManager.isProjectRunning(projectName);
+
+    // Only stop the dev server if this is a fresh project generation (not incremental updates)
+    // We determine this by checking if the project has existing source files
+    const hasExistingCode = await fs.access(path.join(projectPath, 'src', 'app'))
+      .then(() => true)
+      .catch(() => false);
+
+    // Stop server only if:
+    // 1. It's a completely new generation (no existing code), OR
+    // 2. The requirements indicate a complete rebuild/restart
+    const shouldStopServer = projectWasRunning && (
+      !hasExistingCode ||
+      requirements.toLowerCase().includes('restart') ||
+      requirements.toLowerCase().includes('rebuild') ||
+      requirements.toLowerCase().includes('reset')
+    );
+
+    if (shouldStopServer) {
+      console.log(`Stopping running dev server for ${projectName} (fresh generation or rebuild requested)`);
+      projectManager.stopProject(projectName);
       if (socket) {
         socket.emit('output', '\x1b[36m> Stopping development server for update...\x1b[0m\n');
       }
       // Wait a moment for the process to fully terminate
       await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Clean up build artifacts before update to prevent corruption
+      await compilationChecker.cleanupBuildArtifacts(projectPath, socket);
+    } else if (projectWasRunning) {
+      console.log(`Keeping dev server running for ${projectName} (incremental update)`);
+      if (socket) {
+        socket.emit('output', '\x1b[36m> Updating project while keeping server running...\x1b[0m\n');
+      }
+    } else {
+      console.log(`No dev server running for ${projectName}`);
     }
-    
-    // Clean up build artifacts before update to prevent corruption
-    await compilationChecker.cleanupBuildArtifacts(projectPath, socket);
     
     // Check if PRD file exists
     try {
@@ -461,26 +536,47 @@ router.post("/update-project-v2", async (req, res) => {
     console.log(`  - Final decision: ${(!changeAnalysis.needsBuild && changeAnalysis.confidence >= 0.7) ? 'SKIP BUILD ✅' : 'RUN BUILD ⚠️'}`);
     console.log('========================================\n');
     
+    // CRITICAL: Different validation strategies based on dev server state
+    // If dev server is running, we CANNOT run npm build (causes .next corruption)
+    const isDevServerCurrentlyRunning = projectManager.isProjectRunning(projectName);
+
     // Check if this is a simple change that doesn't need build validation
     // Only skip for updates, not initial creation
     // Also check if this is actually a simple change (no complex features)
     const isInitialCreation = requirements.length > 500; // PRDs are typically long
-    
-    if (isUpdate && !isInitialCreation && !changeAnalysis.needsBuild && changeAnalysis.confidence >= 0.7) {
+
+    // Skip FULL build validation if:
+    // 1. Dev server is running (to prevent .next corruption)
+    // 2. It's a simple update with high confidence
+    if (isDevServerCurrentlyRunning || (isUpdate && !isInitialCreation && !changeAnalysis.needsBuild && changeAnalysis.confidence >= 0.7)) {
       skipBuildValidation = true;
       
       if (socket) {
-        socket.emit('output', '\n\x1b[1;32m✅ Simple change detected - skipping build validation\x1b[0m\n');
-        socket.emit('output', `\x1b[90m📊 Analysis: ${changeAnalysis.analysis.filesCount} file(s), ${changeAnalysis.analysis.totalLinesChanged} lines changed\x1b[0m\n`);
-        socket.emit('output', '\x1b[90mRelying on hot reload for instant updates...\x1b[0m\n\n');
+        if (isDevServerCurrentlyRunning) {
+          socket.emit('output', '\n\x1b[1;32m✅ Dev server running - using lightweight validation\x1b[0m\n');
+          socket.emit('output', '\x1b[90m📊 Will use TypeScript checking and hot reload monitoring\x1b[0m\n\n');
+        } else {
+          socket.emit('output', '\n\x1b[1;32m✅ Simple change detected - skipping build validation\x1b[0m\n');
+          socket.emit('output', `\x1b[90m📊 Analysis: ${changeAnalysis.analysis.filesCount} file(s), ${changeAnalysis.analysis.totalLinesChanged} lines changed\x1b[0m\n`);
+          socket.emit('output', '\x1b[90mRelying on hot reload for instant updates...\x1b[0m\n\n');
+        }
       }
       
-      compilationResult = { 
-        success: true, 
-        skipped: true,
-        reason: 'Simple change - no build validation needed',
-        analysis: changeAnalysis.analysis
-      };
+      // For running dev servers, do TypeScript check instead of full build
+      if (isDevServerCurrentlyRunning) {
+        compilationResult = await runTypeScriptCheck(projectPath, socket);
+        if (!compilationResult.success) {
+          // TypeScript errors found, will need LLM to fix
+          compilationResult.needsLLMFix = true;
+        }
+      } else {
+        compilationResult = {
+          success: true,
+          skipped: true,
+          reason: 'Simple change - no build validation needed',
+          analysis: changeAnalysis.analysis
+        };
+      }
     } else {
       // Complex change or low confidence - run full validation
       if (socket) {
@@ -501,13 +597,23 @@ router.post("/update-project-v2", async (req, res) => {
     
     let llmValidationResult = { success: false };
     
-    // Step 4: If compilation still has errors, use LLM to fix them (skip for simple changes)
-    if (!compilationResult.success && !skipBuildValidation) {
+    // Step 4: If compilation still has errors, use LLM to fix them
+    // For dev server running: only fix TypeScript errors without stopping server
+    if (!compilationResult.success && (!skipBuildValidation || compilationResult.needsLLMFix)) {
       if (socket) {
         socket.emit('output', '\n\x1b[1;33m> Compilation errors detected. Using AI to analyze and fix...\x1b[0m\n');
       }
-      
+
       const llmValidator = new LLMBuildValidator();
+
+      // If dev server is running, tell validator to skip full builds
+      if (isDevServerCurrentlyRunning) {
+        llmValidator.skipFullBuild = true;
+        if (socket) {
+          socket.emit('output', '\x1b[90m⚡ Fast mode: Fixing errors without stopping dev server\x1b[0m\n');
+        }
+      }
+
       llmValidationResult = await llmValidator.validateAndFix(projectPath, prd, socket, socketId);
     } else {
       llmValidationResult = { success: true };
@@ -541,20 +647,90 @@ router.post("/update-project-v2", async (req, res) => {
       }
     }
 
-    // Restart dev server if it was running before and update was successful
-    if (projectWasRunning && llmValidationResult.success) {
+    // Start or restart dev server after successful build
+    // CRITICAL FIX: Start server for new projects too, not just when projectWasRunning
+    if (llmValidationResult.success || skipBuildValidation) {
+      const serverAction = projectWasRunning ? 'Restarting' : 'Starting';
       if (socket) {
-        socket.emit('output', '\n\x1b[36m> Restarting development server...\x1b[0m\n');
+        socket.emit('output', `\n\x1b[36m> ${serverAction} development server...\x1b[0m\n`);
       }
       try {
         const projectInfo = await projectManager.startProject(projectPath, projectName, socket);
         if (socket) {
-          socket.emit('output', `\x1b[32m✓ Development server restarted at ${projectInfo.url}\x1b[0m\n`);
+          socket.emit('output', `\x1b[32m✓ Development server ${serverAction.toLowerCase()} at ${projectInfo.url}\x1b[0m\n`);
+
+          // The project-manager already emits server_ready, but let's ensure we also emit it here
+          // for redundancy in case the project-manager's event doesn't reach the frontend
+          socket.emit('project:status', {
+            projectName,
+            stage: 'server_ready',
+            message: 'Development server ready!',
+            url: projectInfo.url,
+            port: projectInfo.port
+          });
         }
       } catch (restartError) {
-        console.error('Failed to restart dev server:', restartError);
+        console.error(`Failed to ${serverAction.toLowerCase()} dev server:`, restartError);
         if (socket) {
-          socket.emit('output', '\x1b[33m⚠ Please manually restart the development server\x1b[0m\n');
+          socket.emit('output', `\x1b[33m⚠ Please manually ${serverAction.toLowerCase()} the development server\x1b[0m\n`);
+          socket.emit('project:status', {
+            projectName,
+            stage: 'server_error',
+            message: `Failed to ${serverAction.toLowerCase()} development server`,
+            error: restartError.message
+          });
+        }
+      }
+    } else if (!llmValidationResult.success) {
+      // Even if build failed, try to start dev server for debugging
+      if (socket) {
+        socket.emit('output', '\n\x1b[33m> Starting development server despite build errors...\x1b[0m\n');
+      }
+
+      // Check if server is already running (might still be running from initial creation)
+      const isAlreadyRunning = projectManager.isProjectRunning(projectName);
+
+      if (isAlreadyRunning) {
+        // Server is already running, just emit the ready event
+        const projectInfo = projectManager.getProjectInfo(projectName);
+        if (socket) {
+          socket.emit('output', `\x1b[32m✓ Development server is already running at ${projectInfo?.url || 'http://localhost:3000'}\x1b[0m\n`);
+          socket.emit('output', '\x1b[33m⚠ Note: Some build errors may still exist. Check the browser console for details.\x1b[0m\n');
+
+          // Emit server_ready to enable tabs
+          socket.emit('project:status', {
+            projectName,
+            stage: 'server_ready',
+            message: 'Development server ready (with errors)',
+            url: projectInfo?.url || 'http://localhost:3000',
+            port: projectInfo?.port || 3000,
+            hasErrors: true
+          });
+        }
+      } else {
+        // Try to start the server
+        try {
+          const projectInfo = await projectManager.startProject(projectPath, projectName, socket);
+          if (socket) {
+            socket.emit('output', `\x1b[32m✓ Development server started at ${projectInfo.url}\x1b[0m\n`);
+            socket.emit('output', '\x1b[33m⚠ Note: Some build errors may still exist. Check the browser console for details.\x1b[0m\n');
+
+            // Emit server_ready even with errors so user can see and debug
+            socket.emit('project:status', {
+              projectName,
+              stage: 'server_ready',
+              message: 'Development server ready (with errors)',
+              url: projectInfo.url,
+              port: projectInfo.port,
+              hasErrors: true
+            });
+          }
+        } catch (startError) {
+          console.error('Failed to start dev server:', startError);
+          if (socket) {
+            socket.emit('output', '\x1b[31m✗ Failed to start development server\x1b[0m\n');
+            socket.emit('output', `\x1b[31mError: ${startError.message}\x1b[0m\n`);
+          }
         }
       }
     }
