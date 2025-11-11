@@ -144,7 +144,7 @@ class ClaudeServiceWithMCP {
 
       // Create the message with tools
       const message = await this.anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: 4000,
         temperature: 0.7,
         system: systemPrompt,
@@ -191,7 +191,7 @@ class ClaudeServiceWithMCP {
       4. Ensure the fix doesn't break other parts of the code`;
 
       const message = await this.anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: 2000,
         temperature: 0.3, // Lower temperature for more precise fixes
         system: systemPrompt,
@@ -226,7 +226,7 @@ class ClaudeServiceWithMCP {
   // Original methods remain for backward compatibility
   async generateText(prompt) {
     const message = await this.anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-4-5-20250929",
       max_tokens: 2000,
       temperature: 0.7,
       messages: [

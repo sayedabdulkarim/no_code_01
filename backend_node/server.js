@@ -1,3 +1,7 @@
+// Load environment variables FIRST before any other imports
+// Load from parent directory where .env file is located
+require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") });
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -30,8 +34,6 @@ const fixPageIntegrationRouter = require("./services/fix-page-integration");
 const buildValidationRouter = require("./routes/build-validation");
 const fileSystemRouter = require("./routes/file-system");
 const validateApiKeyRouter = require("./routes/validate-api-key");
-
-require("dotenv").config(); // Load environment variables
 
 const app = express();
 // Increase payload size limits first before other middleware

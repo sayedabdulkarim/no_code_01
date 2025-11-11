@@ -444,7 +444,7 @@ Return ONLY a valid JSON object with this structure:
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
         const message = await this.anthropic.messages.create({
-          model: "claude-3-5-sonnet-20241022",
+          model: "claude-sonnet-4-5-20250929",
           max_tokens: maxTokens,
           temperature: 0.7,
           messages: [

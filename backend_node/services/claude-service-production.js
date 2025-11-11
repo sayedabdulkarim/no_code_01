@@ -87,7 +87,7 @@ class ClaudeServiceProduction {
       // Create conversation with Claude
       const anthropic = this.getAnthropicClient(socketId);
       const message = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: 4000,
         temperature: 0.7,
         system: systemPrompt,
@@ -218,7 +218,7 @@ Please analyze the existing code and generate new code that integrates seamlessl
           
           // Get Claude's response after processing tool results
           currentResponse = await anthropic.messages.create({
-            model: "claude-3-5-sonnet-20241022",
+            model: "claude-sonnet-4-5-20250929",
             max_tokens: 4000,
             temperature: 0.7,
             system: systemPrompt,
@@ -335,7 +335,7 @@ Return ONLY a valid JSON object with this structure:
       // Create conversation with Claude using MCP tools
       const anthropic = this.getAnthropicClient(socketId);
       const message = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: 8000,
         temperature: 0.3,
         system: systemPrompt,
@@ -469,7 +469,7 @@ Return ONLY a valid JSON object with this structure:
           allMessages.push({ role: "user", content: toolResults });
           
           currentResponse = await anthropic.messages.create({
-            model: "claude-3-5-sonnet-20241022",
+            model: "claude-sonnet-4-5-20250929",
             max_tokens: 8000,
             temperature: 0.3,
             system: systemPrompt,
@@ -548,7 +548,7 @@ Return ONLY a valid JSON object with this structure:
     try {
       const anthropic = this.getAnthropicClient(socketId);
       const message = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: 2000,
         temperature: 0.7,
         messages: [

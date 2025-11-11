@@ -175,7 +175,7 @@ Make sure to preserve the existing functionality while adding the requested chan
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const message = await this.anthropic.messages.create({
-          model: "claude-3-5-sonnet-20241022",
+          model: "claude-sonnet-4-5-20250929",
           max_tokens: 2000,
           temperature: 0.7,
           messages: [
